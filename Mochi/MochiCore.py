@@ -1,12 +1,17 @@
+"""
+Transform particle data into mock cubes
+"""
+
+
 import numpy as np
 import cv2
 from scipy.ndimage import gaussian_filter
 from astropy import units
-from ScanlineHI import makeCube as makeFixedCube
-from AdaptiveScanline import makeAdaptiveCube
+from Mochi.ScanlineHI import makeCube as makeFixedCube
+from Mochi.AdaptiveScanline import makeAdaptiveCube
 import warnings
 
-def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beamSigma, interpolant, *, adaptiveMode = True, resizeMode = True, convolveMode = True, pad = 0):
+def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beamSigma, interpolant, *, adaptiveMode = True, resizeMode = True, convolveMode = True, pad = 0, **kwargs):
 	"""
 	make a mock HI cube
 	Parameters
@@ -56,7 +61,7 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 	else:
 		cubeRange = (distance * pixelNumber * pixelSize.to(units.rad) / units.rad / 2).to(particles["hsm_g"].unit)
 		cubeRange = (-cubeRange, cubeRange)
-		cube = makeAdaptiveCube(particles, cubeRange, interpolant, kernel, channelWidth)
+		cube = makeAdaptiveCube(particles, cubeRange, interpolant, kernel, channelWidth, **kwargs)
 	if resizeMode:
 		cube = resize(cube, [pixelNumber, pixelNumber])
 		if convolveMode:
