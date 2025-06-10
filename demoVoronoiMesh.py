@@ -1,16 +1,13 @@
 """
-Mochi demo using synthetic data
+Mochi demo using synthetic data for voronoi mesh codes
 """
 
 import numpy as np
 from astropy import units
 from matplotlib import pyplot as plt
-from martini.sph_kernels import _QuarticSplineKernel
-from Mochi import Interpolants
+from Mochi import Interpolants, refineGridToOccupancy
 import Mochi
 from demoSource import demoSource
-
-kernel = _QuarticSplineKernel().kernel #Mochi accepts base martini kernels
 
 N = 1000
 particles = demoSource(N)
@@ -26,14 +23,15 @@ pixelNumber = 120
 cube = Mochi.makeCube(
 	galaxyDistance,
 	particles,
-	kernel,
+	None,					#kernel does not need to be specified
 	pixelNumber,
 	wallaby["pixel size"],
 	wallaby["channel width"],
 	wallaby["beam sigma"],
-	Interpolants.SPH,
+	Interpolants.voronoiMesh,		#use voronoi mesh interpolant
 	convolveMode = True,
-	resizeMode = True
+	resizeMode = True,
+	refineAlgorithm = refineGridToOccupancy	#recommended adaptive resolution for voronoi mesh
 )
 
 plt.imshow(np.sum(cube.value, axis = 0)) #moment0 map
