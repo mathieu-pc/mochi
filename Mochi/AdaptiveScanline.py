@@ -6,7 +6,7 @@ But it generally saves significant RAM for MFM interpolation.
 And also saves computation time for both MFM and SPH interpolation.
 """
 import numpy as np
-from Mochi.ScanlineHI import makeCubeFromFields
+from .ScanlineHI import makeCubeFromFields
 from astropy import units
 
 def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks):

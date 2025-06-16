@@ -7,8 +7,8 @@ import numpy as np
 import cv2
 from scipy.ndimage import gaussian_filter
 from astropy import units
-from Mochi.ScanlineHI import makeCube as makeFixedCube
-from Mochi.AdaptiveScanline import makeAdaptiveCube
+from .ScanlineHI import makeCube as makeFixedCube
+from .AdaptiveScanline import makeAdaptiveCube
 import warnings
 
 def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beamSigma, interpolant, *, adaptiveMode = True, resizeMode = True, convolveMode = True, pad = 0, **kwargs):
