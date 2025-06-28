@@ -221,6 +221,7 @@ def makeAdaptiveCube(
 		trigger = trigger
 	)
 	cubeFieldIndices, cellVolume = createRegularArray(finalCells, xyzRange)
+	cellVolume *= cellVolumes.unit
 	cubeShape = cubeFieldIndices.shape
 	cubeFieldIndices = cubeFieldIndices.flatten()
 	return makeCubeFromFields(fieldMHI[cubeFieldIndices], fieldV[cubeFieldIndices], fieldT[cubeFieldIndices], channelSize, cellVolume, cubeShape)
