@@ -205,7 +205,7 @@ def makeAdaptiveCube(
 	radii = (particles["hsm_g"] / xRange[0].unit).decompose()
 	minRadius = (minimumElement / xRange[0].unit).decompose()
 	radii[radii < minRadius] = minRadius
-	finalCells = refineGridToParticleScale(initialCells, positions, radii, threshold)
+	finalCells = refineAlgorithm(initialCells, positions, radii, threshold)
 	cellCentres = getCellCentres(finalCells) * particles["xyz_g"].unit
 	cellVolumes = getCellVolumes(finalCells) * particles["xyz_g"].unit ** 3
 	fieldV, fieldMHI, fieldT = interpolant(
@@ -225,3 +225,4 @@ def makeAdaptiveCube(
 	cubeShape = cubeFieldIndices.shape
 	cubeFieldIndices = cubeFieldIndices.flatten()
 	return makeCubeFromFields(fieldMHI[cubeFieldIndices], fieldV[cubeFieldIndices], fieldT[cubeFieldIndices], channelSize, cellVolume, cubeShape)
+
