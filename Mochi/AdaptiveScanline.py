@@ -6,12 +6,12 @@ But it generally saves significant RAM for MFM interpolation.
 And also saves computation time for both MFM and SPH interpolation.
 """
 import numpy as np
-from .ScanlineHI import makeCubeFromFields
+from .ScanlineHI import makeCubeFromFields, getChannelNumber
 from astropy import units
 
 def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks):
 	"""
-	bisect operation for refine grid algorithms
+	Bisect operation for refine grid algorithms
 	"""
 	newSize = size / 2.0
 	newCells.extend([
@@ -21,7 +21,7 @@ def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCe
 	newCellsOver.extend([False] * 8)
 	newCellsMasks.extend([mask[incell]] * 8)
 
-def refineGridToOccupancy(cells, positions, radii, threshold, cellsOver = None, cellsMasks = None):
+def refineGridToOccupancy(cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, minSize = 0.25):
 	"""
 	Starting from a coarse grid, refine until all cells are within a factor of particle radii locally
 	
@@ -62,9 +62,9 @@ def refineGridToOccupancy(cells, positions, radii, threshold, cellsOver = None, 
 			continue
 		# Find particles inside this cell
 		mask = cellsMasks[n]
-		incell = np.sum( np.abs(positions[mask] - [x,y,z] - size/2), axis = 1) < size
-		count = np.count(incell)
-		if count > threshold:
+		incell = np.sum( np.abs(positions[mask] - [x,y,z] - size/2), axis = 1) < size * 2
+		count = np.sum(incell)
+		if (count > 1) and (size > minSize):
 			_refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks)
 		else:
 			newCells.append((x, y, z, size))
@@ -139,7 +139,7 @@ def getCellVolumes(cells):
 	return cells[:,-1]**3
 
 def createRegularArray(cells, xyzRange):
-	"""Convers an adaptive set of cells into a regular array"""
+	"""Converts an adaptive set of cells into a regular array"""
 	xyz0 = np.min(cells, axis = 0)
 	dx = xyz0[-1]
 	xyz0[-1] = 0
@@ -153,6 +153,17 @@ def createRegularArray(cells, xyzRange):
 		x_end, y_end, z_end = cellsFinish[i]
 		grid[x_start:x_end, y_start:y_end, z_start:z_end] = i
 	return grid, dx**3
+
+def makeCubeFromAdaptiveFields(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, cubeFieldIndices):
+	nChannel = getChannelNumber(fieldV, fieldMHI, fieldT, channelSize)
+	spectrumRange = (channelSize * (np.arange(nChannel) - (nChannel-1)/2))
+	diff = fieldV[None, ...] - spectrumRange[:, None]
+	fieldT[fieldMHI==0] = 1 * fieldT.unit
+	numerator = fieldMHI / np.sqrt(2*np.pi*fieldT) * channelSize * cellVolume
+	fieldSpectrum = numerator * np.exp(-diff**2 / (2 * fieldT[None, ...]))
+	hyperCube = fieldSpectrum[:, cubeFieldIndices]
+	cube = np.sum(hyperCube.reshape(nChannel, *cubeShape), axis = 1)
+	return np.flip(np.moveaxis(cube, 1, 2), axis = 2)
 
 def makeAdaptiveCube(
 		particles,
@@ -202,9 +213,12 @@ def makeAdaptiveCube(
 		for z in np.linspace(*xyzRange[2], initialGridSize, endpoint = False)
 	]
 	positions = (particles["xyz_g"] / xRange[0].unit).decompose()
-	radii = (particles["hsm_g"] / xRange[0].unit).decompose()
 	minRadius = (minimumElement / xRange[0].unit).decompose()
-	radii[radii < minRadius] = minRadius
+	if particles["hsm_g"] is None:
+		radii = np.ones(len(positions)) * minRadius
+	else:
+		radii = (particles["hsm_g"] / xRange[0].unit).decompose()
+		radii[radii < minRadius] = minRadius
 	finalCells = refineAlgorithm(initialCells, positions, radii, threshold)
 	cellCentres = getCellCentres(finalCells) * particles["xyz_g"].unit
 	cellVolumes = getCellVolumes(finalCells) * particles["xyz_g"].unit ** 3
@@ -224,5 +238,4 @@ def makeAdaptiveCube(
 	cellVolume *= cellVolumes.unit
 	cubeShape = cubeFieldIndices.shape
 	cubeFieldIndices = cubeFieldIndices.flatten()
-	return makeCubeFromFields(fieldMHI[cubeFieldIndices], fieldV[cubeFieldIndices], fieldT[cubeFieldIndices], channelSize, cellVolume, cubeShape)
-
+	return makeCubeFromAdaptiveFields(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, cubeFieldIndices)

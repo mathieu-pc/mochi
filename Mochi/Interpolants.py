@@ -158,7 +158,7 @@ def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 	totalKernel = np.zeros(nPos) / dVolume.unit
 	particleKernels = []
 	for i in range(N):
-		particleKernel = kernel(fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i])[:,0]
+		particleKernel = evalKernel(fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i], kernel)[:,0]
 		totalKernel[slices[i]] += particleKernel
 		if (len(slices[i]) > trigger):
 			particleKernels += [True]
@@ -173,7 +173,7 @@ def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 			continue
 		currentKernel = particleKernels[i]
 		if currentKernel is True:
-			currentKernel = kernel(fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i])[:,0]
+			currentKernel = evalKernel(fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i], kernel)[:,0]
 		volume = np.sum( currentKernel * (dVolume[slices[i]] / totalKernel[slices[i]]) )
 		#volume *=  np.pi*4/3 * H[i]**3 / np.sum(dVolume[slices[i]]) # for out of bounds particles, the volume is scaled up
 		fieldMHI[slices[i]] += currentKernel * MHI[i] / volume
@@ -195,7 +195,7 @@ def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 	"""
 	Compute the interpolated radial velocity, density and temperature fields using voronoi mesh.
-	If high mass particles are near the borders of the interpolation region, this will cause noticeable errors.
+	Assumes that fieldPos creates a box.
 
 	Parameters
 	----------
@@ -232,15 +232,41 @@ def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 	fieldT : array atropy quantity
 		interpolated thermal velocity dispersion
 	"""
+
 	M *= units.dimensionless_unscaled
 	N, nDim = X.shape
 	if(V.ndim != 1):
 		V = V[:,0] #more than one dimension of velocity is given, use radial velocity
-	particleSlices = KDTree(X).query(fieldPos)[1] #nearest neighbor assignment of particles to field pos
-	particleMasks = particleSlices == np.arange(len(X))[:, np.newaxis]
-	particleVolumes = np.sum(particleMasks * dVolume, axis = 1)
-	del particleMasks
-	fieldMHI = MHI[particleSlices] / particleVolumes[particleSlices]
-	fieldV = V[particleSlices]
-	fieldT = T[particleSlices]
+	particleIndices = np.arange(len(X))
+	_, nearestParticleIndices = KDTree(X).query(fieldPos) #nearest neighbor assignment of particles to field pos
+
+	#construct a mask for inbound particles but not assigned to a cell
+	inboundParticleMask = np.all(X > fieldPos.min(axis = 0), axis = 1) & np.all(X < fieldPos.max(axis = 0), axis = 1) #assume box shape for field pos
+	usedParticleMask = np.isin(particleIndices, nearestParticleIndices)
+	missedParticleMask = inboundParticleMask & ~usedParticleMask
+	missedParticleIndices = particleIndices[missedParticleMask]
+	_, missedParticleCellIndices = KDTree(fieldPos).query(X[missedParticleMask])
+	nMissedParticle = np.sum(missedParticleMask)
+
+	particleMasks = nearestParticleIndices == particleIndices[:, np.newaxis]
+	particleMasks[missedParticleIndices, missedParticleCellIndices] = True
+
+	fieldNParticle = np.ones(len(fieldPos), dtype = int)
+	fieldNParticle[missedParticleCellIndices] += 1
+
+	particleVolumes = np.einsum('ij,j->i', particleMasks, dVolume / fieldNParticle) #for shared cells, the volume is divided between the particles
+	#particleVolumes = np.sum(particleMasks * dVolume / fieldNParticle, axis = 1) #for shared cells, the volume is divided between the particles
+
+	fieldMHI = MHI[nearestParticleIndices] / particleVolumes[nearestParticleIndices]
+	fieldMHI[missedParticleCellIndices] += MHI[missedParticleMask] / particleVolumes[missedParticleMask]
+	fieldMHI /= fieldNParticle
+
+	fieldV = V[nearestParticleIndices]
+	fieldV[missedParticleCellIndices] += V[missedParticleMask]
+	fieldV /= fieldNParticle
+
+	fieldT = T[nearestParticleIndices]
+	fieldT[missedParticleCellIndices] += T[missedParticleMask]
+	fieldT /= fieldNParticle
+
 	return fieldV, fieldMHI, fieldT

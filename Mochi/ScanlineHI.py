@@ -102,6 +102,7 @@ def getChannelNumber(VX, M, T, dV, *, nMin = 120, nMax = 300):
 	guess = int((np.abs(v[i]) + 3 * np.sqrt(t[i]))/dV + 1 )
 	return max(min((guess + 25)*2, nMax), nMin)+1
 
+
 def makeCubeFromFields(fieldMHI, fieldV, fieldT, channelSize, dVolume, shape):
 	"""
 	Assemble fields into an HI cube
@@ -132,11 +133,17 @@ def makeCubeFromFields(fieldMHI, fieldV, fieldT, channelSize, dVolume, shape):
 	fieldV = fieldV.reshape(shape)
 	fieldT[fieldMHI==0] = 1 * fieldT.unit
 	numerator = fieldMHI / np.sqrt(2*np.pi*fieldT) * channelSize * dVolume
-	del fieldMHI
 	cube = np.zeros( (nChannel, shape[1], shape[2]) ) * numerator.unit
-	for i in range(nChannel):
-		cube[i] += np.sum( numerator * np.exp(-(fieldV-spectrumRange[i])**2/fieldT/2), axis = 0)
-	return np.flip(np.moveaxis(cube, 1, 2), axis = 2)
+
+	spectrumRange = channelSize * (np.arange(nChannel) - (nChannel - 1) / 2)
+	diff = fieldV[None, ...] - spectrumRange[:, None, None, None]
+	gaussians = np.exp(-diff**2 / (2 * fieldT[None, ...]))
+	cube = np.sum(numerator[None, ...] * gaussians, axis=1)  # sum over LOS axis
+	cube = np.flip(np.moveaxis(cube, 1, 2), axis=2)
+	return cube
+	#for i in range(nChannel):
+	#	cube[i] += np.sum( numerator * np.exp(-(fieldV-spectrumRange[i])**2/fieldT/2), axis = 0)
+	#return np.flip(np.moveaxis(cube, 1, 2), axis = 2)
 
 def makeCube(shape, deltaX, particles, kernel, channelSize, interpolant, *, trigger = 1e4):
 	"""

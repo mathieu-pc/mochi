@@ -21,7 +21,7 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 	particles: dictionary
 		particles dictionary of arrays
 			xyz_g:	positions
-			hsm_g:	smoothing lengths as kernel radius
+			hsm_g:	smoothing lengths as kernel radius (MFM / SPH only)
 			mHI_g:	particle HI mass
 			m:	particle mass
 			T_g:	particle thermal velocity dispersions
@@ -59,7 +59,7 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 		n, deltaX = getScanlineParamsFromObservationParams(np.min(particles["hsm_g"])/2, pixelNumber, pixelSize, distance)
 		cube = makeFixedCube( (n,) * 3, deltaX, particles, kernel, channelWidth, interpolant)
 	else:
-		cubeRange = (distance * pixelNumber * pixelSize.to(units.rad) / units.rad / 2).to(particles["hsm_g"].unit)
+		cubeRange = (distance * pixelNumber * pixelSize.to(units.rad) / units.rad / 2).to(particles["xyz_g"].unit)
 		cubeRange = (-cubeRange, cubeRange)
 		cube = makeAdaptiveCube(particles, cubeRange, interpolant, kernel, channelWidth, **kwargs)
 	if resizeMode:
