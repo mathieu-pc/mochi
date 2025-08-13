@@ -144,10 +144,10 @@ def createRegularArray(cells, xyzRange):
 	dx = xyz0[-1]
 	xyz0[-1] = 0
 	grid_shape = [ int((myRange[1]-myRange[0])//dx) for myRange in xyzRange]
-	grid = np.empty(grid_shape, dtype=int) #grid = np.full(grid_shape, np.prod(grid_shape)+10, dtype = int) slower but good for testing
+	grid = np.empty(grid_shape, dtype=int)
 	N = len(cells)
-	cellsBegin = ((cells[:,:-1] - xyz0[:-1])/dx).astype(int)
-	cellsFinish = np.ceil((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(int)
+	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(int)
+	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(int)
 	for i in range(N):
 		x_start, y_start, z_start = cellsBegin[i]
 		x_end, y_end, z_end = cellsFinish[i]
@@ -238,4 +238,5 @@ def makeAdaptiveCube(
 	cellVolume *= cellVolumes.unit
 	cubeShape = cubeFieldIndices.shape
 	cubeFieldIndices = cubeFieldIndices.flatten()
+
 	return makeCubeFromAdaptiveFields(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, cubeFieldIndices)
