@@ -15,10 +15,10 @@ def convertBeamToBeamSigma(beam, spectralSigma, pixelSize):
 
 def getNoiseCube(shape, noiseRMS, beam, pixelSize, spectralSigma = 0):
 	beamSigma = convertBeamToBeamSigma(beam, spectralSigma, pixelSize)
-	noiseRMS *= 2 * np.sqrt(beamSigma[1] * beamSigma[2]) * np.sqrt(np.pi)
-	cube = np.random.normal(loc = 0, scale = noiseRMS.value, size = shape)
+	noiseRMSPreBeam = noiseRMS * 2 * np.sqrt(beamSigma[1] * beamSigma[2]) * np.sqrt(np.pi)
+	cube = np.random.normal(loc = 0, scale = noiseRMSPreBeam.value, size = shape)
 	cube = gaussian_filter(cube, beamSigma, mode = "reflect")
-	return cube * noiseRMS.unit
+	return cube * noiseRMSPreBeam.unit
 
 def convolve(cube, beam, pixelSize, spectralSigma = 0, pad = 2):
 	beamSigma = convertBeamToBeamSigma(beam, spectralSigma, pixelSize)
@@ -34,4 +34,5 @@ def getMassFromFlux(flux, beam, pixelSize, channelSize, distance):
 
 def getJyFromMass(cube, beam, pixelSize, channelWidth, distance):
 	converter = getMassFromFlux(1 * units.Jy, beam, pixelSize, channelWidth, distance)
+
 	return (cube / converter).decompose() * units.Jy / units.beam
