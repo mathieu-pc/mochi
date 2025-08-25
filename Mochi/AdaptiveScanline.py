@@ -144,7 +144,7 @@ def createRegularArray(cells, xyzRange):
 	dx = xyz0[-1]
 	xyz0[-1] = 0
 	grid_shape = [ int((myRange[1]-myRange[0])//dx) for myRange in xyzRange]
-	grid = np.empty(grid_shape, dtype=int)
+	grid = np.full(grid_shape, -1, dtype = int)#np.empty(grid_shape, dtype=int) #grid = np.full(grid_shape, np.prod(grid_shape)+10, dtype = int) slower but good for testing
 	N = len(cells)
 	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(int)
 	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(int)
@@ -157,11 +157,13 @@ def createRegularArray(cells, xyzRange):
 def makeCubeFromAdaptiveFields(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, cubeFieldIndices):
 	nChannel = getChannelNumber(fieldV, fieldMHI, fieldT, channelSize)
 	spectrumRange = (channelSize * (np.arange(nChannel) - (nChannel-1)/2))
-	diff = fieldV[None, ...] - spectrumRange[:, None]
 	fieldT[fieldMHI==0] = 1 * fieldT.unit
 	numerator = fieldMHI / np.sqrt(2*np.pi*fieldT) * channelSize * cellVolume
+	diff = fieldV[..., None] - spectrumRange[None, :]
+	fieldSpectrum = numerator[...,None] * np.exp(-diff**2 / (2 * fieldT[...,None]))
+	diff = fieldV[None, ...] - spectrumRange[:, None]
 	fieldSpectrum = numerator * np.exp(-diff**2 / (2 * fieldT[None, ...]))
-	hyperCube = fieldSpectrum[:, cubeFieldIndices]
+	hyperCube = fieldSpectrum[:, cubeFieldIndices.flatten()]
 	cube = np.sum(hyperCube.reshape(nChannel, *cubeShape), axis = 1)
 	return np.flip(np.moveaxis(cube, 1, 2), axis = 2)
 
@@ -238,5 +240,4 @@ def makeAdaptiveCube(
 	cellVolume *= cellVolumes.unit
 	cubeShape = cubeFieldIndices.shape
 	cubeFieldIndices = cubeFieldIndices.flatten()
-
 	return makeCubeFromAdaptiveFields(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, cubeFieldIndices)

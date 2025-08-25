@@ -2,16 +2,17 @@
 Transform particle data into mock cubes
 """
 
-
-import numpy as np
+import warnings
 import cv2
-from scipy.ndimage import gaussian_filter
+import numpy as np
 from astropy import units
+
+from . import PostProcessing
 from .ScanlineHI import makeCube as makeFixedCube
 from .AdaptiveScanline import makeAdaptiveCube
-import warnings
+from .mochiUtils import _astropyUnitWrap
 
-def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beamSigma, interpolant, *, adaptiveMode = True, resizeMode = True, convolveMode = True, pad = 0, **kwargs):
+def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beam, interpolant, *, adaptiveMode = True, resizeMode = True, convolveMode = True, pad = 0, **kwargs):
 	"""
 	make a mock HI cube
 	Parameters
@@ -34,8 +35,8 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 		angular pixel size
 	channelWidth:
 		channel size in velocity units
-	beamSigma:
-		angular beam STDEV. Gaussian beam is assumed.
+	beam:
+		radio_beam Beam
 	interpolant:
 		interpolation method (example: MFM or SPH)
 	adaptiveMode: bool
@@ -65,21 +66,10 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 	if resizeMode:
 		cube = resize(cube, [pixelNumber, pixelNumber])
 		if convolveMode:
-			cube = convolve(cube, beamSigma/pixelSize)
+			cube = PostProcessing.convolve(cube, beam, pixelSize)
 	else:
 		if convolveMode:
 			warnings.warn("Error: can't convolve without resize")
-	return cube
-
-def _astropyUnitWrap(cube):
-	try:
-		return cube.value.astype(float), cube.unit
-	except:
-		return cube.astype(float), 1
-
-def applyObservation(cube, pixelSize, telescopePixelSize, beamSize = 0):
-	resizeFactor = np.round( np.array(cube.shape[1:]) * pixelSize / telescopePixelSize )
-	cube = resize(cube, [cube.shape[0], cube.shape[1] * resizeFactor[0], cube.shape[2] * resizeFactor[1]])
 	return cube
 
 def resize(cube, targetShape):
@@ -95,19 +85,6 @@ def resize(cube, targetShape):
 	for i in range(cube.shape[0]):
 		result[i] = cv2.resize(unitlessCube[i].astype(float), targetShape[::-1], interpolation = cv2.INTER_AREA)
 	return result * np.prod(cube.shape[1:]) / np.prod(targetShape) * unit
-
-def convolve(cube, beamSigma, spectralSigma = 0, pad = 2):
-	try:
-		iterator = iter(beamSigma)
-	except TypeError:
-		sigma = (spectralSigma, beamSigma, beamSigma)
-	else:
-		sigma = (spectralSigma,) + tuple(beamSigma)
-	unitlessCube, unit = _astropyUnitWrap(cube)
-	if pad != 0:
-		padWidth = [(int(x * pad + 0.5),) * 2 for x in sigma]
-		unitlessCube = np.pad(unitlessCube, padWidth, 'constant', constant_values = 0)
-	return gaussian_filter(unitlessCube, sigma = sigma, mode = 'constant', cval = 0) * unit
 
 def getScanlineParamsFromObservationParams(scanlineResolution, pixelNumber, pixelSize, distance):
 	"""

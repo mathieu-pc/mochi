@@ -6,6 +6,8 @@ import numpy as np
 from astropy import units
 from matplotlib import pyplot as plt
 from martini.sph_kernels import _QuarticSplineKernel
+from radio_beam import Beam
+
 from Mochi import Interpolants
 import Mochi
 from demoSource import demoSource
@@ -16,12 +18,13 @@ N = 1000
 particles = demoSource(N)
 
 wallaby = {
-	"beam sigma": 30 * units.arcsec / (2 * np.sqrt(2 * np.log(2))),
+	"beam": Beam(30 * units.arcsec),
 	"pixel size": 6 * units.arcsec,
-	"channel width": 4 * units.km / units.s
+	"channel width": 4 * units.km / units.s,
+	"noise rms": 1.6e-3 * units.Jy / units.beam
 }
 galaxyDistance = 10 * units.Mpc
-pixelNumber = 120
+pixelNumber = 100
 
 cube = Mochi.makeCube(
 	galaxyDistance,
@@ -30,13 +33,19 @@ cube = Mochi.makeCube(
 	pixelNumber,
 	wallaby["pixel size"],
 	wallaby["channel width"],
-	wallaby["beam sigma"],
+	wallaby["beam"],
 	Interpolants.SPH,
+	adaptiveMode = True,
 	convolveMode = True,
 	resizeMode = True
 )
 
-plt.imshow(np.sum(cube.value, axis = 0)) #moment0 map
+noiseCube = (
+	Mochi.PostProcessing.getJyFromMass(cube, wallaby["beam"], wallaby["pixel size"], wallaby["channel width"], galaxyDistance)
+	+ Mochi.PostProcessing.getNoiseCube(cube.shape, wallaby["noise rms"], wallaby["beam"], pixelSize = wallaby["pixel size"])
+)
+
+plt.imshow(np.sum(noiseCube.value, axis = 0)) #moment0 map
 plt.show()
 
 #from astropy.io import fits
