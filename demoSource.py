@@ -6,7 +6,11 @@ Borrows heavily from martini's demo_source.
 
 import numpy as np
 from astropy import units
-from scipy.spatial import distance
+from scipy.spatial import KDTree
+
+def calculateNearestNeighbourDistance(xyz):
+	dist, _ = KDTree(xyz).query(xyz, k = 2)
+	return dist[:,1]
 
 def demoSource(N=500):
 	"""
@@ -45,7 +49,7 @@ def demoSource(N=500):
 	mHI_g = mHI_g / mHI_g.sum() * 5.0e9 * units.Msun
 	# Smoothing lengths based on nearest neighbour distance
 	xyz_g = np.moveaxis(xyz_g, 0, -1)
-	hsm_g = 2 * np.min(distance.squareform(distance.pdist(xyz_g.value)), axis = 1) * xyz_g.unit
+	hsm_g = 2 * calculateNearestNeighbourDistance(xyz_g.value) * xyz_g.unit
 	mask = hsm_g < 0.5 * units.kpc
 	hsm_g[mask] = 0.5 * units.kpc
 	vxyz_g = np.moveaxis(vxyz_g, 0, -1)
