@@ -45,7 +45,7 @@ def evalKernel(xEval, xParticle, h, kernel):
 	q = distance.cdist(xEval/h, xParticle/h)
 	return kernel(q) / (h ** 3)
 
-def SPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = None):
+def SPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
 	"""
 	Compute the interpolated radial velocity, density and temperature fields using SPH interpolation evaluated at fieldPos positions
 	Note that different SPH schemes have different definitions for velocity interpolation.
@@ -71,8 +71,6 @@ def SPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = None):
 		positions at which to interpolate fields.
 	dVolume :
 		volume element size.
-	trigger :
-		unused
 
 	Returns
 	-------
@@ -110,7 +108,7 @@ def SPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = None):
 	finalT[kernelSlice] = fieldT[kernelSlice] / fieldM[kernelSlice]
 	return finalV, fieldMHI, finalT
 
-def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
+def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, kernelRecalculationTrigger = 1e4, **kwargs):
 	"""
 	Compute the interpolated radial velocity, density and temperature fields using MFM interpolation evaluated at flatPos positions
 	If high mass particles are near the borders of the interpolation region, this will cause noticeable errors.
@@ -135,7 +133,7 @@ def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 		positions at which to interpolate fields.
 	dVolume :
 		volume element size.
-	trigger : int
+	kernelRecalculationTrigger : int
 		number of cells intersecting particle after which the memory isn't saved and kernel is recomputed.
 
 	Returns
@@ -160,7 +158,7 @@ def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 	for i in range(N):
 		particleKernel = evalKernel(fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i], kernel)[:,0]
 		totalKernel[slices[i]] += particleKernel
-		if (len(slices[i]) > trigger):
+		if (len(slices[i]) > kernelRecalculationTrigger):
 			particleKernels += [True]
 		else:
 			particleKernels += [particleKernel]
@@ -192,7 +190,7 @@ def MFM(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 	finalT[kernelSlice] = fieldT[kernelSlice] / totalKernel[kernelSlice] / finalM[kernelSlice]
 	return finalV, finalP, finalT
 
-def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
+def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
 	"""
 	Compute the interpolated radial velocity, density and temperature fields using voronoi mesh.
 	Assumes that fieldPos creates a box.
@@ -220,8 +218,6 @@ def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, trigger = 1e4):
 		positions at which to interpolate fields.
 	dVolume :
 		volume element size for fieldPos
-	trigger : int
-		unused
 
 	Returns
 	-------

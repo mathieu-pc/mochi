@@ -6,7 +6,6 @@ But it generally saves significant RAM for MFM interpolation.
 And also saves computation time for both MFM and SPH interpolation.
 """
 import numpy as np
-from .ScanlineHI import makeCubeFromFields, getChannelNumber
 from astropy import units
 
 def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks):
@@ -154,30 +153,13 @@ def createRegularArray(cells, xyzRange):
 		grid[x_start:x_end, y_start:y_end, z_start:z_end] = i
 	return grid, dx**3
 
-def makeCubeFromAdaptiveFields(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, cubeFieldIndices):
-	nChannel = getChannelNumber(fieldV, fieldMHI, fieldT, channelSize)
-	spectrumRange = (channelSize * (np.arange(nChannel) - (nChannel-1)/2))
-	fieldT[fieldMHI==0] = 1 * fieldT.unit
-	numerator = fieldMHI / np.sqrt(2*np.pi*fieldT) * channelSize * cellVolume
-	diff = fieldV[..., None] - spectrumRange[None, :]
-	fieldSpectrum = numerator[...,None] * np.exp(-diff**2 / (2 * fieldT[...,None]))
-	diff = fieldV[None, ...] - spectrumRange[:, None]
-	fieldSpectrum = numerator * np.exp(-diff**2 / (2 * fieldT[None, ...]))
-	hyperCube = fieldSpectrum[:, cubeFieldIndices.flatten()]
-	cube = np.sum(hyperCube.reshape(nChannel, *cubeShape), axis = 1)
-	return np.flip(np.moveaxis(cube, 1, 2), axis = 2)
-
-def makeAdaptiveCube(
-		particles,
-		xRange,
-		interpolant,
-		kernel,
-		channelSize, *,
+def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiativeTransferModel,
+		*,
 		initialGridSize = 2,
 		threshold = 0.5,
-		trigger = 1,
 		minimumElement = 1 * units.kpc,
-		refineAlgorithm = refineGridToParticleScale
+		refineAlgorithm = refineGridToParticleScale,
+		**kwargs
 	):
 	"""
 	Make a cube using adaptive resolution.
@@ -200,8 +182,6 @@ def makeAdaptiveCube(
 	threshold :
 		Cell size threshold of minimum particle smoothing length after which cells are split.
 		Lower -> higher resolution.
-	trigger :
-		trigger after which particle kernel is re-computed
 
 	Returns
 	-------
@@ -234,10 +214,19 @@ def makeAdaptiveCube(
 		kernel,
 		cellCentres,
 		cellVolumes,
-		trigger = trigger
+		**kwargs
 	)
 	cubeFieldIndices, cellVolume = createRegularArray(finalCells, xyzRange)
 	cellVolume *= cellVolumes.unit
 	cubeShape = cubeFieldIndices.shape
 	cubeFieldIndices = cubeFieldIndices.flatten()
-	return makeCubeFromAdaptiveFields(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, cubeFieldIndices)
+	return radiativeTransferModel(
+		fieldMHI,
+		fieldV,
+		fieldT,
+		channelSize,
+		cellVolume,
+		cubeShape,
+		cubeFieldIndices = cubeFieldIndices,
+		**kwargs
+	)

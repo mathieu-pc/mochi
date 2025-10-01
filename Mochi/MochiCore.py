@@ -1,7 +1,3 @@
-"""
-Transform particle data into mock cubes
-"""
-
 import warnings
 import cv2
 import numpy as np
@@ -12,7 +8,14 @@ from .ScanlineHI import makeCube as makeFixedCube
 from .AdaptiveScanline import makeAdaptiveCube
 from .mochiUtils import _astropyUnitWrap
 
-def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beam, interpolant, *, adaptiveMode = True, resizeMode = True, convolveMode = True, pad = 0, **kwargs):
+def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beam, interpolant, radiativeTransferModel,
+		*,
+		adaptiveMode = True,
+		resizeMode = True,
+		convolveMode = True,
+		pad = 0,
+		**kwargs
+	):
 	"""
 	make a mock HI cube
 	Parameters
@@ -58,11 +61,11 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 	"""
 	if not adaptiveMode:
 		n, deltaX = getScanlineParamsFromObservationParams(np.min(particles["hsm_g"])/2, pixelNumber, pixelSize, distance)
-		cube = makeFixedCube( (n,) * 3, deltaX, particles, kernel, channelWidth, interpolant)
+		cube = makeFixedCube( (n,) * 3, deltaX, particles, kernel, channelWidth, interpolant, radiativeTransferModel)
 	else:
 		cubeRange = (distance * pixelNumber * pixelSize.to(units.rad) / units.rad / 2).to(particles["xyz_g"].unit)
 		cubeRange = (-cubeRange, cubeRange)
-		cube = makeAdaptiveCube(particles, cubeRange, interpolant, kernel, channelWidth, **kwargs)
+		cube = makeAdaptiveCube(particles, cubeRange, interpolant, kernel, channelWidth, radiativeTransferModel, **kwargs)
 	if resizeMode:
 		cube = resize(cube, [pixelNumber, pixelNumber])
 		if convolveMode:

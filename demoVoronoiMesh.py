@@ -9,6 +9,7 @@ from martini.sph_kernels import _QuarticSplineKernel
 from radio_beam import Beam
 
 from Mochi import Interpolants
+from Mochi import RadiativeTransfer
 import Mochi
 from demoSource import demoSource
 
@@ -29,12 +30,14 @@ pixelNumber = 100
 cube = Mochi.makeCube(
 	galaxyDistance,
 	particles,
-	None,						#kernel does not need to be specified
+	None,
 	pixelNumber,
 	wallaby["pixel size"],
 	wallaby["channel width"],
 	wallaby["beam"],
-	Interpolants.voronoiMesh,			#use voronoi mesh interpolant
+	Interpolants.voronoiMesh,
+	RadiativeTransfer.adaptiveOpticallyThin,
+	adaptiveMode = True,
 	convolveMode = True,
 	resizeMode = True,
 	refineAlgorithm = Mochi.refineGridToOccupancy	#recommended adaptive resolution for voronoi mesh

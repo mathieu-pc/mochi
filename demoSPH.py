@@ -9,6 +9,7 @@ from martini.sph_kernels import _QuarticSplineKernel
 from radio_beam import Beam
 
 from Mochi import Interpolants
+from Mochi import RadiativeTransfer
 import Mochi
 from demoSource import demoSource
 
@@ -35,7 +36,8 @@ cube = Mochi.makeCube(
 	wallaby["channel width"],
 	wallaby["beam"],
 	Interpolants.SPH,
-	adaptiveMode = True,
+	RadiativeTransfer.adaptiveOpticallyThin,
+	adaptiveMode = False,
 	convolveMode = True,
 	resizeMode = True
 )
