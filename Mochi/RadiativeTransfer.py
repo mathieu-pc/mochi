@@ -127,6 +127,7 @@ def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cub
 	fieldSpectrum = numerator[...,None] * np.exp(-diff**2 / (2 * fieldT[...,None]))
 	diff = fieldV[None, ...] - spectrumRange[:, None]
 	fieldSpectrum = numerator * np.exp(-diff**2 / (2 * fieldT[None, ...]))
-	hyperCube = fieldSpectrum[:, cubeFieldIndices.flatten()]
-	cube = np.sum(hyperCube.reshape(nChannel, *cubeShape), axis = 1)
+	hyperCube = fieldSpectrum[:, cubeFieldIndices.flatten()].reshape(nChannel, *cubeShape)
+	cube = np.sum(hyperCube, axis = 1)
 	return np.flip(np.moveaxis(cube, 1, 2), axis = 2)
+
