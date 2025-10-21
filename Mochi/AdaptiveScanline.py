@@ -26,7 +26,7 @@ def _passCompleteCell(cellsLists, contentList):
 	for i in range(len(cellsLists)):
 		cellsLists[i].append(contentList[i])
 
-def refineGrid(incellFunction, bisectCondition, cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, minSize = 0.25):
+def refineGrid(incellFunction, bisectCondition, cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, iter = 0, stopIter = 7):
 	"""
 	Starting from a coarse grid, refine until no cell satisfy bisectCondition.
 	
@@ -68,20 +68,20 @@ def refineGrid(incellFunction, bisectCondition, cells, positions, radii, thresho
 			_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
 			continue
 		incell = incellFunction(cellsMasks[n], positions, radii, [x,y,z], size)
-		if bisectCondition(size, incell, minSize, threshold, radii):
+		if bisectCondition(size, incell, threshold, radii[cellsMasks[n]]):
 			_refineGridBisect(size, x, y, z, cellsMasks[n], incell, newCells, newCellsOver, newCellsMasks)
 		else:
 			_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
-	if len(newCells) == len(cells):
+	if len(newCells) == len(cells) or iter == stopIter:
 		return np.array(newCells)
-	return refineGridToOccupancy(newCells, positions, radii, threshold, newCellsOver, newCellsMasks)
+	return refineGrid(incellFunction, bisectCondition, newCells, positions, radii, threshold, newCellsOver, newCellsMasks, iter + 1)
 
 def occupancyIncell(mask, particlesPos, particlesRadii, cellPos, cellSize):
 	return np.sum( np.abs(particlesPos[mask] - cellPos - cellSize/2), axis = 1) < cellSize * 2
 
-def isNotSingleOccupancy(cellSize, incell, minSize, threshold, particlesRadii):
+def isNotSingleOccupancy(cellSize, incell, threshold, particlesRadii):
 	count = np.sum(incell)
-	return (count > threshold) & (cellSize > minSize)
+	return (count > threshold)
 
 refineGridToOccupancy = partial(refineGrid, occupancyIncell, isNotSingleOccupancy)
 
@@ -90,11 +90,11 @@ RF = np.sqrt(3)/2 #factor to convert cell size into effective radius contributio
 def intersectIncell(mask, particlesPos, particlesRadii, cellPos, cellSize):
 	return np.linalg.norm(particlesPos[mask] - cellPos - cellSize/2, axis = 1) < particlesRadii[mask] + cellSize * RF
 
-def isNotParticleScale(cellSize, incell, minSize, threshold, particlesRadii):
+def isBelowParticleScale(cellSize, incell, threshold, particlesRadii):
 	minRadius = np.min(particlesRadii[incell]) if np.any(incell) else np.inf
-	return (minRadius * threshold < cellSize) & (cellSize > minSize)
+	return (minRadius * threshold < cellSize)
 
-refineGridToParticleScale = partial(refineGrid, intersectIncell, isNotParticleScale)
+refineGridToParticleScale = partial(refineGrid, intersectIncell, isBelowParticleScale)
 
 def getCellCentres(cells):
 	"""Return a Nx3 numpy array of the cell centres."""
@@ -198,4 +198,3 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiat
 		cubeFieldIndices = cubeFieldIndices,
 		**kwargs
 	)
-
