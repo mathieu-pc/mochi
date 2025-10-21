@@ -8,11 +8,11 @@ import numpy as np
 from astropy import units
 from scipy.spatial import KDTree
 
-def calculateNearestNeighbourDistance(xyz):
-	dist, _ = KDTree(xyz).query(xyz, k = 2)
-	return dist[:,1]
+def calculateNearestNeighbourDistance(xyz, neighbourNumber = 1):
+	dist, _ = KDTree(xyz).query(xyz, k = 1 + neighbourNumber)
+	return dist[:,-1]
 
-def demoSource(N=500):
+def demoSource(N=500, neighbourNumber = 10):
 	"""
 	Create a set of particles ressembling a galaxy.
 	This is not meant to be representative of any actual galaxy model.
@@ -22,6 +22,8 @@ def demoSource(N=500):
 	----------
 	N : int
 		Number of particles to generate in source.
+	neighbourNumber : int
+		Number of neighbours for determining smoothing length.
 
 	Returns
 	-------
@@ -44,12 +46,10 @@ def demoSource(N=500):
 	vz = (np.random.rand(N) * 2.0 - 1.0) * 5
 	vxyz_g = np.vstack((vx, vy, vz)) * units.km * units.s**-1
 	T_g = 20 * np.ones(N) * (units.km / units.s)**2
-	# HI masses with some scatter
 	mHI_g = np.ones(N) + 0.01 * (np.random.rand(N) - 0.5)
 	mHI_g = mHI_g / mHI_g.sum() * 5.0e9 * units.Msun
-	# Smoothing lengths based on nearest neighbour distance
 	xyz_g = np.moveaxis(xyz_g, 0, -1)
-	hsm_g = 2 * calculateNearestNeighbourDistance(xyz_g.value) * xyz_g.unit
+	hsm_g = calculateNearestNeighbourDistance(xyz_g.value, 20) * xyz_g.unit
 	mask = hsm_g < 0.5 * units.kpc
 	hsm_g[mask] = 0.5 * units.kpc
 	vxyz_g = np.moveaxis(vxyz_g, 0, -1)
