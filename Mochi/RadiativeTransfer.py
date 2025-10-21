@@ -4,6 +4,7 @@ Feel free to write your own
 """
 import warnings
 import numpy as np
+import psutil
 
 def getChannelNumber(VX, M, T, dV, *, nMin = 120, nMax = 300):
 	"""
@@ -44,6 +45,29 @@ def getChannelNumber(VX, M, T, dV, *, nMin = 120, nMax = 300):
 		i = i2
 	guess = int((np.abs(v[i]) + 3 * np.sqrt(t[i]))/dV + 1 )
 	return max(min((guess + 25)*2, nMax), nMin)+1
+
+def calculateFieldSpectrum(fieldM, fieldV, fieldT, cellVolume, channelSize):
+	nChannel = getChannelNumber(fieldV, fieldM, fieldT, channelSize)
+	spectrumRange = (channelSize * (np.arange(nChannel) - (nChannel-1)/2))
+	fieldT[fieldM==0] = 1 * fieldT.unit
+	numerator = fieldM / np.sqrt(2*np.pi*fieldT) * channelSize * cellVolume
+	diff = fieldV[None, ...] - spectrumRange[:, None]
+	fieldSpectrum = numerator * np.exp(-diff**2 / (2 * fieldT[None, ...]))
+	return fieldSpectrum
+
+def getChunkSize(bytes, safety=1, dtype=np.float64):
+	freeMemory = psutil.virtual_memory().available
+	chunk = int((freeMemory * safety) / (bytes))
+	return max(1, chunk)
+
+def chunkSum(nChannel, volumeShape, fieldSpectrum, cubeFieldIndices):
+	cube = np.zeros( (nChannel,) + volumeShape[1:]) * fieldSpectrum.unit
+	chunkSize = getChunkSize(fieldSpectrum.dtype.itemsize * nChannel * volumeShape[1] * volumeShape[2])
+	cubeIndices = cubeFieldIndices.reshape(volumeShape)
+	for start in range(0, volumeShape[0], chunkSize):
+		stop = min(start + chunkSize, volumeShape[0])
+		cube += np.sum(fieldSpectrum[:, cubeIndices[start:stop]], axis = 1)
+	return cube
 
 def opticallyThin(fieldMHI, fieldV, fieldT, channelSize, dVolume, shape,
 		**kwargs
@@ -119,15 +143,6 @@ def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cub
 	if cubeFieldIndices is None:		
 		warnings.warn("cubeFieldIndices is expected, will attempt defaulting to " + defaultRadiativeModel.__name__, UserWarning)
 		return defaultRadiativeModel(fieldMHI, fieldV, fieldT, channelSize, cellVolume, cubeShape, **kwargs)
-	nChannel = getChannelNumber(fieldV, fieldMHI, fieldT, channelSize)
-	spectrumRange = (channelSize * (np.arange(nChannel) - (nChannel-1)/2))
-	fieldT[fieldMHI==0] = 1 * fieldT.unit
-	numerator = fieldMHI / np.sqrt(2*np.pi*fieldT) * channelSize * cellVolume
-	diff = fieldV[..., None] - spectrumRange[None, :]
-	fieldSpectrum = numerator[...,None] * np.exp(-diff**2 / (2 * fieldT[...,None]))
-	diff = fieldV[None, ...] - spectrumRange[:, None]
-	fieldSpectrum = numerator * np.exp(-diff**2 / (2 * fieldT[None, ...]))
-	hyperCube = fieldSpectrum[:, cubeFieldIndices.flatten()].reshape(nChannel, *cubeShape)
-	cube = np.sum(hyperCube, axis = 1)
+	fieldSpectrum = calculateFieldSpectrum(fieldMHI, fieldV, fieldT, cellVolume, channelSize)
+	cube = chunkSum(fieldSpectrum.shape[0], cubeShape, fieldSpectrum, cubeFieldIndices)
 	return np.flip(np.moveaxis(cube, 1, 2), axis = 2)
-
