@@ -7,6 +7,8 @@ And also saves computation time for both MFM and SPH interpolation.
 """
 import numpy as np
 from astropy import units
+from functools import partial
+from . import RadiativeTransfer
 
 def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks):
 	"""
@@ -20,12 +22,20 @@ def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCe
 	newCellsOver.extend([False] * 8)
 	newCellsMasks.extend([mask[incell]] * 8)
 
-def refineGridToOccupancy(cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, minSize = 0.25):
+def _passCompleteCell(cellsLists, contentList):
+	for i in range(len(cellsLists)):
+		cellsLists[i].append(contentList[i])
+
+def refineGrid(incellFunction, bisectCondition, cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, minSize = 0.25):
 	"""
-	Starting from a coarse grid, refine until all cells are within a factor of particle radii locally
+	Starting from a coarse grid, refine until no cell satisfy bisectCondition.
 	
 	Parameters
 	----------
+	incellFunction: function
+		delimits the particles to consider for the cell
+	bisectCondition: function
+		if returns true, the cell is bisected
 	cells: list
 		list of [x,y,z,h] where x,y,z is the 3D position of the low corner and h is the size of the cell
 	positions: array N x 3
@@ -55,79 +65,36 @@ def refineGridToOccupancy(cells, positions, radii, threshold, cellsOver = None, 
 	for n in range(cellsNumber):
 		x, y, z, size = cells[n]
 		if cellsOver[n]:
-			newCells.append((x, y, z, size))
-			newCellsOver.append(True)
-			newCellsMasks.append([True])
+			_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
 			continue
-		# Find particles inside this cell
-		mask = cellsMasks[n]
-		incell = np.sum( np.abs(positions[mask] - [x,y,z] - size/2), axis = 1) < size * 2
-		count = np.sum(incell)
-		if (count > 1) and (size > minSize):
-			_refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks)
+		incell = incellFunction(cellsMasks[n], positions, radii, [x,y,z], size)
+		if bisectCondition(size, incell, minSize, threshold, radii):
+			_refineGridBisect(size, x, y, z, cellsMasks[n], incell, newCells, newCellsOver, newCellsMasks)
 		else:
-			newCells.append((x, y, z, size))
-			newCellsOver.append(True)
-			newCellsMasks.append([True])
+			_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
 	if len(newCells) == len(cells):
 		return np.array(newCells)
 	return refineGridToOccupancy(newCells, positions, radii, threshold, newCellsOver, newCellsMasks)
 
+def occupancyIncell(mask, particlesPos, particlesRadii, cellPos, cellSize):
+	return np.sum( np.abs(particlesPos[mask] - cellPos - cellSize/2), axis = 1) < cellSize * 2
 
-def refineGridToParticleScale(cells, positions, radii, threshold, cellsOver = None, cellsMasks = None):
-	"""
-	Starting from a coarse grid, refine until all cells are within a factor of particle radii locally
-	
-	Parameters
-	----------
-	cells: list
-		list of [x,y,z,h] where x,y,z is the 3D position of the low corner and h is the size of the cell
-	positions: array N x 3
-		array of particle positions 
-	radii: array N
-		array of particle radii
-	threshold: float
-		scale factor between radii and cell size
-		if any radius * threshold < cell size, the cell is bisected
-	cellsOver: None or list
-		list of cells that no longer need to be checked
-	cellsMasks: None or list
-		list of particle indices of particles intersecting with cells
+def isNotSingleOccupancy(cellSize, incell, minSize, threshold, particlesRadii):
+	count = np.sum(incell)
+	return (count > threshold) & (cellSize > minSize)
 
-	Returns
-	-------
-	newCells:
-		array of cells [x,y,z,h] where x,y,z is the 3D position of the low corner and h is the size of the cell
-	"""
-	cellsNumber = len(cells)
-	if cellsOver is None:
-		cellsOver = [False] * cellsNumber
-	if cellsMasks is None:
-		cellsMasks = [np.arange(len(radii))] * cellsNumber
-	newCells = []
-	newCellsOver = []
-	newCellsMasks = []
-	sizeRadiusFactor = np.sqrt(3)/2 #factor to convert cell size into effective radius contribution. Taken as max possible
-	for n in range(cellsNumber):
-		x, y, z, size = cells[n]
-		if cellsOver[n]:
-			newCells.append((x, y, z, size))
-			newCellsOver.append(True)
-			newCellsMasks.append([True])
-			continue
-		# Find particles inside this cell
-		mask = cellsMasks[n]
-		incell = np.linalg.norm(positions[mask] - [x,y,z] - size/2, axis = 1) < radii[mask] + size * sizeRadiusFactor
-		minRadius = np.min(radii[mask][incell]) if np.any(incell) else np.inf		
-		if minRadius * threshold < size:
-			_refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks)
-		else:
-			newCells.append((x, y, z, size))
-			newCellsOver.append(True)
-			newCellsMasks.append([True])
-	if len(newCells) == len(cells):
-		return np.array(newCells)
-	return refineGridToParticleScale(newCells, positions, radii, threshold, newCellsOver, newCellsMasks)
+refineGridToOccupancy = partial(refineGrid, occupancyIncell, isNotSingleOccupancy)
+
+RF = np.sqrt(3)/2 #factor to convert cell size into effective radius contribution. Taken as max possible
+
+def intersectIncell(mask, particlesPos, particlesRadii, cellPos, cellSize):
+	return np.linalg.norm(particlesPos[mask] - cellPos - cellSize/2, axis = 1) < particlesRadii[mask] + cellSize * RF
+
+def isNotParticleScale(cellSize, incell, minSize, threshold, particlesRadii):
+	minRadius = np.min(particlesRadii[incell]) if np.any(incell) else np.inf
+	return (minRadius * threshold < cellSize) & (cellSize > minSize)
+
+refineGridToParticleScale = partial(refineGrid, occupancyIncell, isNotSingleOccupancy)
 
 def getCellCentres(cells):
 	"""Return a Nx3 numpy array of the cell centres."""
@@ -137,17 +104,18 @@ def getCellVolumes(cells):
 	"""Return a N numpy array of the cell volumes."""
 	return cells[:,-1]**3
 
-def createRegularArray(cells, xyzRange):
+def createRegularArray(cells, xyzRange, dtype = np.uintc):
 	"""Converts an adaptive set of cells into a regular array"""
 	xyz0 = np.min(cells, axis = 0)
 	dx = xyz0[-1]
 	xyz0[-1] = 0
 	grid_shape = [ int((myRange[1]-myRange[0])//dx) for myRange in xyzRange]
-	grid = np.full(grid_shape, -1, dtype = int)#np.empty(grid_shape, dtype=int) #grid = np.full(grid_shape, np.prod(grid_shape)+10, dtype = int) slower but good for testing
 	N = len(cells)
+	cellRange = np.arange(N, dtype = dtype)
+	grid = np.empty(grid_shape, dtype = dtype)#np.empty(grid_shape, dtype=int) #grid = np.full(grid_shape, np.prod(grid_shape)+10, dtype = int) slower but good for testing
 	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(int)
 	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(int)
-	for i in range(N):
+	for i in cellRange:
 		x_start, y_start, z_start = cellsBegin[i]
 		x_end, y_end, z_end = cellsFinish[i]
 		grid[x_start:x_end, y_start:y_end, z_start:z_end] = i
@@ -216,8 +184,8 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiat
 		cellVolumes,
 		**kwargs
 	)
-	cubeFieldIndices, cellVolume = createRegularArray(finalCells, xyzRange)
-	cellVolume *= cellVolumes.unit
+	cubeFieldIndices, finalCellVolume = createRegularArray(finalCells, xyzRange)
+	finalCellVolume *= cellVolumes.unit
 	cubeShape = cubeFieldIndices.shape
 	cubeFieldIndices = cubeFieldIndices.flatten()
 	return radiativeTransferModel(
@@ -225,7 +193,7 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiat
 		fieldV,
 		fieldT,
 		channelSize,
-		cellVolume,
+		finalCellVolume,
 		cubeShape,
 		cubeFieldIndices = cubeFieldIndices,
 		**kwargs
