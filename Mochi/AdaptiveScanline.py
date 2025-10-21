@@ -94,7 +94,7 @@ def isNotParticleScale(cellSize, incell, minSize, threshold, particlesRadii):
 	minRadius = np.min(particlesRadii[incell]) if np.any(incell) else np.inf
 	return (minRadius * threshold < cellSize) & (cellSize > minSize)
 
-refineGridToParticleScale = partial(refineGrid, occupancyIncell, isNotSingleOccupancy)
+refineGridToParticleScale = partial(refineGrid, intersectIncell, isNotParticleScale)
 
 def getCellCentres(cells):
 	"""Return a Nx3 numpy array of the cell centres."""
@@ -198,3 +198,4 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiat
 		cubeFieldIndices = cubeFieldIndices,
 		**kwargs
 	)
+
