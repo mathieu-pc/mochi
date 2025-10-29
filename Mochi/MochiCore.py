@@ -7,12 +7,13 @@ from . import PostProcessing
 from .ScanlineHI import makeCube as makeFixedCube
 from .AdaptiveScanline import makeAdaptiveCube
 from .mochiUtils import _astropyUnitWrap
+from .RadiativeTransfer import adaptiveOpticallyThin
 
-def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, beam, interpolant, radiativeTransferModel,
+def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, interpolant, radiativeTransferModel = adaptiveOpticallyThin,
 		*,
+ 		beam = None,
 		adaptiveMode = True,
 		resizeMode = True,
-		convolveMode = True,
 		pad = 0,
 		**kwargs
 	):
@@ -40,6 +41,8 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 		channel size in velocity units
 	beam:
 		radio_beam Beam
+		Currently, only the beam major axis is used.
+		If None is passed, convolution will not be applied.
 	interpolant:
 		interpolation method (example: MFM or SPH)
 	adaptiveMode: bool
@@ -47,9 +50,6 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 		Default: True.
 	resizeMode: bool
 		Resize the cube to match input pixel size if True.
-		Default: True.
-	convolveMode: bool
-		Convolve using beam sigma if True.
 		Default: True.
 	pad: float
 		Pad by number of beam sigma before convolution.
@@ -68,11 +68,11 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 		cube = makeAdaptiveCube(particles, cubeRange, interpolant, kernel, channelWidth, radiativeTransferModel, **kwargs)
 	if resizeMode:
 		cube = resize(cube, [pixelNumber, pixelNumber])
-		if convolveMode:
+		if beam is not None:
 			cube = PostProcessing.convolve(cube, beam, pixelSize)
 	else:
-		if convolveMode:
-			warnings.warn("Error: can't convolve without resize")
+		if beam is not None:
+			warnings.warn("Can't convolve when resizeMode is not True")
 	return cube
 
 def resize(cube, targetShape):

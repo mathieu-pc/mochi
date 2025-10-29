@@ -34,7 +34,7 @@ def swiftGalaxyToParticle(galaxy):
 	)
 	return particles
 
-def mochiFromSwiftGalaxy(distance, swiftGalaxy, kernel, pixelNumber, pixelSize, channelWidth, beam, interpolant, radiativeTransfer, **kwargs):
+def mochiFromSwiftGalaxy(distance, swiftGalaxy, kernel, pixelNumber, pixelSize, channelWidth, interpolant, radiativeTransfer, **kwargs):
 	return Mochi.makeCube(
 		distance,
 		swiftGalaxyToParticle(swiftGalaxy),
@@ -42,7 +42,6 @@ def mochiFromSwiftGalaxy(distance, swiftGalaxy, kernel, pixelNumber, pixelSize, 
 		pixelNumber,
 		pixelSize,
 		channelWidth,
-		beam,
 		interpolant,
 		radiativeTransfer,
 		**kwargs

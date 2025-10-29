@@ -7,6 +7,7 @@ from astropy import units
 from matplotlib import pyplot as plt
 from martini.sph_kernels import _QuarticSplineKernel
 from radio_beam import Beam
+from timeit import default_timer
 
 from Mochi import Interpolants
 from Mochi import RadiativeTransfer
@@ -15,8 +16,8 @@ from demoSource import demoSource
 
 kernel = _QuarticSplineKernel().kernel #Mochi accepts base martini kernels
 
-N = 1000
-particles = demoSource(N)
+N = 100000
+particles = demoSource(N, 20)
 
 wallaby = {
 	"beam": Beam(30 * units.arcsec),
@@ -27,6 +28,7 @@ wallaby = {
 galaxyDistance = 10 * units.Mpc
 pixelNumber = 100
 
+startTime = default_timer()
 cube = Mochi.makeCube(
 	galaxyDistance,
 	particles,
@@ -34,13 +36,12 @@ cube = Mochi.makeCube(
 	pixelNumber,
 	wallaby["pixel size"],
 	wallaby["channel width"],
-	wallaby["beam"],
-	Interpolants.SPH,
-	RadiativeTransfer.adaptiveOpticallyThin,
-	adaptiveMode = False,
-	convolveMode = True,
+	Interpolants.MFM,
+	beam = wallaby["beam"],
+	adaptiveMode = True,
 	resizeMode = True
 )
+print("Runtime:", default_timer()-startTime)
 
 noiseCube = (
 	Mochi.PostProcessing.getJyFromMass(cube, wallaby["beam"], wallaby["pixel size"], wallaby["channel width"], galaxyDistance)

@@ -26,7 +26,7 @@ def _passCompleteCell(cellsLists, contentList):
 	for i in range(len(cellsLists)):
 		cellsLists[i].append(contentList[i])
 
-def refineGrid(incellFunction, bisectCondition, cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, iter = 0, stopIter = 7):
+def refineGrid(incellFunction, bisectCondition, cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, iter = 0, stopIter = 8):
 	"""
 	Starting from a coarse grid, refine until no cell satisfy bisectCondition.
 	
@@ -67,7 +67,7 @@ def refineGrid(incellFunction, bisectCondition, cells, positions, radii, thresho
 		if cellsOver[n]:
 			_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
 			continue
-		incell = incellFunction(cellsMasks[n], positions, radii, [x,y,z], size)
+		incell = incellFunction(cellsMasks[n], positions, radii, [x,y,z], size, threshold)
 		if bisectCondition(size, incell, threshold, radii[cellsMasks[n]]):
 			_refineGridBisect(size, x, y, z, cellsMasks[n], incell, newCells, newCellsOver, newCellsMasks)
 		else:
@@ -76,7 +76,7 @@ def refineGrid(incellFunction, bisectCondition, cells, positions, radii, thresho
 		return np.array(newCells)
 	return refineGrid(incellFunction, bisectCondition, newCells, positions, radii, threshold, newCellsOver, newCellsMasks, iter + 1)
 
-def occupancyIncell(mask, particlesPos, particlesRadii, cellPos, cellSize):
+def occupancyIncell(mask, particlesPos, particlesRadii, cellPos, cellSize, threshold):
 	return np.sum( np.abs(particlesPos[mask] - cellPos - cellSize/2), axis = 1) < cellSize * 2
 
 def isNotSingleOccupancy(cellSize, incell, threshold, particlesRadii):
@@ -85,16 +85,18 @@ def isNotSingleOccupancy(cellSize, incell, threshold, particlesRadii):
 
 refineGridToOccupancy = partial(refineGrid, occupancyIncell, isNotSingleOccupancy)
 
-RF = np.sqrt(3)/2 #factor to convert cell size into effective radius contribution. Taken as max possible
 
-def intersectIncell(mask, particlesPos, particlesRadii, cellPos, cellSize):
-	return np.linalg.norm(particlesPos[mask] - cellPos - cellSize/2, axis = 1) < particlesRadii[mask] + cellSize * RF
+RF = np.sqrt(3)/2 								#factor to convert cell size into effective radius contribution. Taken as max possible
 
-def isBelowParticleScale(cellSize, incell, threshold, particlesRadii):
-	minRadius = np.min(particlesRadii[incell]) if np.any(incell) else np.inf
-	return (minRadius * threshold < cellSize)
 
-refineGridToParticleScale = partial(refineGrid, intersectIncell, isBelowParticleScale)
+def intersectIncell(mask, particlesPos, particlesRadii, cellPos, cellSize, threshold):
+	smallParticle = particlesRadii[mask] * threshold < cellSize 				#No need to consider particles larger than cell
+	return (np.linalg.norm(particlesPos[mask] - cellPos - cellSize/2, axis = 1) < particlesRadii[mask] + cellSize * RF) & smallParticle
+
+def isAnyParticleIncluded(cellSize, incell, threshold, particlesRadii):
+	return np.any(incell)
+
+refineGridToParticleScale = partial(refineGrid, intersectIncell, isAnyParticleIncluded)
 
 def getCellCentres(cells):
 	"""Return a Nx3 numpy array of the cell centres."""
@@ -162,12 +164,12 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiat
 		for y in np.linspace(*xyzRange[1], initialGridSize, endpoint = False)
 		for z in np.linspace(*xyzRange[2], initialGridSize, endpoint = False)
 	]
-	positions = (particles["xyz_g"] / xRange[0].unit).decompose()
-	minRadius = (minimumElement / xRange[0].unit).decompose()
+	positions = (particles["xyz_g"] / xRange[0].unit).decompose().value
+	minRadius = (minimumElement / xRange[0].unit).decompose().value
 	if particles["hsm_g"] is None:
 		radii = np.ones(len(positions)) * minRadius
 	else:
-		radii = (particles["hsm_g"] / xRange[0].unit).decompose()
+		radii = (particles["hsm_g"] / xRange[0].unit).decompose().value
 		radii[radii < minRadius] = minRadius
 	finalCells = refineAlgorithm(initialCells, positions, radii, threshold)
 	cellCentres = getCellCentres(finalCells) * particles["xyz_g"].unit
@@ -187,7 +189,7 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiat
 	cubeFieldIndices, finalCellVolume = createRegularArray(finalCells, xyzRange)
 	finalCellVolume *= cellVolumes.unit
 	cubeShape = cubeFieldIndices.shape
-	cubeFieldIndices = cubeFieldIndices.flatten()
+	cubeFieldIndices = cubeFieldIndices.flatten()#a
 	return radiativeTransferModel(
 		fieldMHI,
 		fieldV,
@@ -195,6 +197,7 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelSize, radiat
 		channelSize,
 		finalCellVolume,
 		cubeShape,
-		cubeFieldIndices = cubeFieldIndices,
+		cells = finalCells,
+		cellUnit = particles["xyz_g"].unit,
 		**kwargs
 	)

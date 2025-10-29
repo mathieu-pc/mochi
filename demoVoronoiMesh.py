@@ -34,11 +34,9 @@ cube = Mochi.makeCube(
 	pixelNumber,
 	wallaby["pixel size"],
 	wallaby["channel width"],
-	wallaby["beam"],
 	Interpolants.voronoiMesh,
-	RadiativeTransfer.adaptiveOpticallyThin,
+	beam = wallaby["beam"],
 	adaptiveMode = True,
-	convolveMode = True,
 	resizeMode = True,
 	refineAlgorithm = Mochi.refineGridToOccupancy	#recommended adaptive resolution for voronoi mesh
 )
