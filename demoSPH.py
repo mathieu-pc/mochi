@@ -36,7 +36,7 @@ cube = Mochi.makeCube(
 	pixelNumber,
 	wallaby["pixel size"],
 	wallaby["channel width"],
-	Interpolants.MFM,
+	Interpolants.SPH,
 	beam = wallaby["beam"],
 	adaptiveMode = True,
 	resizeMode = True
@@ -52,6 +52,7 @@ plt.imshow(np.sum(noiseCube.value, axis = 0)) #moment0 map
 plt.show()
 
 #from astropy.io import fits
-#cards = [fits.Card("OBJ", "mochi_test" + str(N))]
+#cards = Mochi.PostProcessing.makeCards(noiseCube, wallaby["pixel size"], wallaby["channel width"], wallaby["beam"])
+#cards += [fits.Card("OBJ", "mochi_test" + str(N))] #add cards to the MOCHI generated ones!
 #header = fits.Header(cards)
-#fits.writeto("mochitest.fits", cube.value, header = header, overwrite = True)
+#fits.writeto("mochitest.fits", noiseCube.value, header = header, overwrite = True)

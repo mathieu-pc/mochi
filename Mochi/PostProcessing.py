@@ -4,8 +4,10 @@ This is to handle post processing of mochi cubes
 import numpy as np
 from scipy.ndimage import gaussian_filter
 from astropy import units
+from warnings import warn
 
 from .mochiUtils import _astropyUnitWrap
+from .postprocessing.cardhandler import makeCards
 
 SIGMA_TO_FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2))
 
@@ -21,6 +23,8 @@ def getNoiseCube(shape, noiseRMS, beam, pixelSize, spectralSigma = 0):
 	return cube * noiseRMSPreBeam.unit
 
 def convolve(cube, beam, pixelSize, spectralSigma = 0, pad = 2):
+	if beam.major != beam.minor:
+		warn("Only circular beams are supported. Will use major axis.")
 	beamSigma = convertBeamToBeamSigma(beam, spectralSigma, pixelSize)
 	unitlessCube, unit = _astropyUnitWrap(cube)
 	if pad != 0:
