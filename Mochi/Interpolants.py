@@ -54,7 +54,7 @@ def _evalCacheKernel(q, kernelCache, kernelCacheResolution):
 	return kernelCache[(np.clip(q, 0, 1) * kernelCacheResolution).astype(np.uint8)]
 
 
-def sphLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCacheResolution, nPos, N, velocityUnit, massUnit, volumeUnit):
+def sphLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCacheResolution, nPos, N, velocityUnit, massUnit, volumeUnit, maskOutOfBound):
 	fieldMHI = np.zeros(nPos)
 	fieldM = np.zeros(nPos)
 	fieldV = np.zeros(nPos)
@@ -64,6 +64,8 @@ def sphLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCache
 		if len(slices[i]) == 0:
 			continue
 		particleKernel = _evalCacheKernel(dist[i]/H[i], kernelCache, kernelCacheResolution) / H3[i]
+		if not maskOutOfBound[i]: #Since the particle is not out bound, we know the kernel should sum to 1. The kernel not summing to 1 is due to resolution effects.
+			particleKernel /= np.sum(particleKernel * cellVolumes[slices[i]])
 		fieldM[slices[i]] += particleKernel * M[i]
 		fieldMHI[slices[i]] += particleKernel * MHI[i]
 		fieldV[slices[i]] += particleKernel * P[i]
@@ -77,7 +79,7 @@ def sphLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCache
 	return finalV, finalMHI, finalT
 
 
-def mfmLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCacheResolution, nPos, N, velocityUnit, massUnit, volumeUnit):
+def mfmLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCacheResolution, nPos, N, velocityUnit, massUnit, volumeUnit, maskOutOfBound):
 	fieldMHI = np.zeros(nPos)
 	fieldM = np.zeros(nPos)
 	fieldV = np.zeros(nPos)
@@ -100,7 +102,8 @@ def mfmLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCache
 			continue
 		particleKernel = _evalCacheKernel(dist[i]/H[i], kernelCache, kernelCacheResolution) / H3[i]
 		volume = np.sum( particleKernel * (cellVolumes[slices[i]] / totalKernel[slices[i]]) )
-		#volume *=  np.pi*4/3 * H[i]**3 / np.sum(cellVolumes[slices[i]]) # for out of bounds particles, the volume is scaled up
+		if maskOutOfBound[i]:
+			volume *=  np.pi*4/3 * H[i]**3 / np.sum(cellVolumes[slices[i]]) # for out of bounds particles, the volume is scaled up
 		fieldMHI[slices[i]] += particleKernel * MHI[i] / volume
 		fieldM[slices[i]] += particleKernel * M[i] / volume
 		fieldV[slices[i]] += particleKernel * P[i] / volume
@@ -117,8 +120,17 @@ def mfmLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCache
 	return finalV, finalMHI, finalT
 
 
+def _getOutOfBoundParticles(particlePos, particleRadius, fieldPos):
+	lowBound = np.min(fieldPos, axis = 0)
+	topBound = np.max(fieldPos, axis = 0)
+	maskOutOfBound = ((particlePos + particleRadius[:,np.newaxis]) > topBound) | ((particlePos - particleRadius[:,np.newaxis]) < lowBound)
+	maskOutOfBound = np.any(maskOutOfBound, axis = 1)
+	return maskOutOfBound
+
+
 def particleScatter(mainLoop, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, kernelCacheResolution = 256, **kwargs):
 	kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution))
+	maskOutOfBound = _getOutOfBoundParticles(X, H, fieldPos)
 	M *= units.dimensionless_unscaled
 	N, nDim = X.shape
 	if(V.ndim != 1):
@@ -130,7 +142,24 @@ def particleScatter(mainLoop, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, 
 	particleKernels = []
 	P = V.value * M.value
 	thermal = T.to_value(V.unit ** 2) * M.value
-	return mainLoop(M.value, MHI.value, P, thermal, H.value, dist, slices, dVolume.value, kernelCache, kernelCacheResolution, nPos, N, V.unit, MHI.unit, H.unit ** 3)
+	return mainLoop(
+		M.value,
+		MHI.value,
+		P,
+		thermal,
+		H.value,
+		dist,
+		slices,
+		dVolume.value,
+		kernelCache,
+		kernelCacheResolution,
+		nPos,
+		N,
+		V.unit,
+		MHI.unit,
+		H.unit ** 3,
+		maskOutOfBound
+	)
 
 SPH = partial(particleScatter, sphLoop)
 MFM = partial(particleScatter, mfmLoop)
