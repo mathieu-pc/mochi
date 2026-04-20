@@ -6,7 +6,7 @@ from astropy import units
 from . import PostProcessing
 from .ScanlineHI import makeCube as makeFixedCube
 from .AdaptiveScanline import makeAdaptiveCube
-from .mochiUtils import _astropyUnitWrap
+from .PostProcessing import _astropyUnitWrap
 from .RadiativeTransfer import adaptiveOpticallyThin
 
 def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, interpolant, radiativeTransferModel = adaptiveOpticallyThin,
