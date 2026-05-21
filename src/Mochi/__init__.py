@@ -1,4 +1,4 @@
-from .MochiCore import makeCube
+from .MochiCore import makeCube, makeCubeFromSource
 from . import Interpolants
 from . import RadiativeTransfer
 from . import PostProcessing
