@@ -9,6 +9,51 @@ from .AdaptiveScanline import makeAdaptiveCube
 from .PostProcessing import _astropyUnitWrap
 from .RadiativeTransfer import adaptiveOpticallyThin
 
+
+def makeCubeFromSource(source, kernel, pixelNumber, pixelSize, channelWidth, interpolant, **kwargs):
+	"""
+	Make a MOCHI cube from a MARTINI source object.
+	Parameters
+	----------
+	source: MARTINI source
+		source to make a cube of
+	kernel: function
+		kernel for interpolation
+	pixelNumber: int
+		number of pixels
+	pixelSize: astropy.quantity
+		angular pixel size
+	channelWidth: astropy.quantity
+		channel width (velocity)
+	interpolant: function
+		MOCHI interppolant function
+	**kwargs:
+		kwargs are passed to Mochi.makeCube
+		
+	Returns
+	-------
+		Mochi.makeCube return value
+	"""
+	particles = {
+		"mHI_g": source.mHI_g,
+		"m": source.mHI_g,
+		"hsm_g": source.hsm_g,
+		"xyz_g": source.coordinates_g.get_xyz().T,
+		"vxyz_g": source.coordinates_g.differentials["s"].get_d_xyz().T,
+		"T_g": (source.T_g * constants.k_B / constants.m_p).decompose()
+	}
+	return Mochi.makeCube(
+		source.distance,
+		particles,
+		kernel,
+		pixelNumber,
+		pixelSize,
+		channelWidth,
+		interpolant,
+		**kwargs
+	)
+
+
 def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, interpolant, radiativeTransferModel = adaptiveOpticallyThin,
 		*,
  		beam = None,
