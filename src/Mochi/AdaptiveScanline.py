@@ -10,6 +10,7 @@ from astropy import units
 from functools import partial
 from . import RadiativeTransfer
 
+
 def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCellsMasks):
 	"""
 	Bisect operation for refine grid algorithms
@@ -22,11 +23,13 @@ def _refineGridBisect(size, x, y, z, mask, incell, newCells, newCellsOver, newCe
 	newCellsOver.extend([False] * 8)
 	newCellsMasks.extend([mask[incell]] * 8)
 
+
 def _passCompleteCell(cellsLists, contentList):
 	for i in range(len(cellsLists)):
 		cellsLists[i].append(contentList[i])
 
-def refineGrid(incellFunction, bisectCondition, cells, positions, radii, threshold, cellsOver = None, cellsMasks = None, iter = 0, stopIter = 8):
+
+def refineGrid(incellFunction, bisectCondition, cells, positions, radii, threshold, stopIter = 8):
 	"""
 	Starting from a coarse grid, refine until no cell satisfy bisectCondition.
 	
@@ -40,41 +43,47 @@ def refineGrid(incellFunction, bisectCondition, cells, positions, radii, thresho
 		list of [x,y,z,h] where x,y,z is the 3D position of the low corner and h is the size of the cell
 	positions: array N x 3
 		array of particle positions 
-	radii: array N (unused)
+	radii: array N
 		array of particle radii
-	threshold: integer
-		if any cell has occupancy number > threshold, the cell is bisected.
-	cellsOver: None or list
-		list of cells that no longer need to be checked
-	cellsMasks: None or list
-		list of particle indices of particles intersecting with cells
-
+	threshold: 
+		sensitivity threshold used by bisectCondition.
 	Returns
 	-------
 	newCells:
 		array of cells [x,y,z,h] where x,y,z is the 3D position of the low corner and h is the size of the cell
 	"""
 	cellsNumber = len(cells)
-	if cellsOver is None:
-		cellsOver = [False] * cellsNumber
-	if cellsMasks is None:
-		cellsMasks = [np.arange(len(radii))] * cellsNumber
+	cellsOver = np.zeros(cellsNumber, dtype = bool)
+	cellsMasks = [np.arange(len(radii))] * cellsNumber
 	newCells = []
 	newCellsOver = []
 	newCellsMasks = []
-	for n in range(cellsNumber):
-		x, y, z, size = cells[n]
-		if cellsOver[n]:
-			_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
-			continue
-		incell = incellFunction(cellsMasks[n], positions, radii, [x,y,z], size, threshold)
-		if bisectCondition(size, incell, threshold, radii[cellsMasks[n]]):
-			_refineGridBisect(size, x, y, z, cellsMasks[n], incell, newCells, newCellsOver, newCellsMasks)
-		else:
-			_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
-	if len(newCells) == len(cells) or iter == stopIter:
-		return np.array(newCells)
-	return refineGrid(incellFunction, bisectCondition, newCells, positions, radii, threshold, newCellsOver, newCellsMasks, iter + 1)
+
+	iter = 0
+	while iter < stopIter:
+		for n in range(cellsNumber):
+			x, y, z, size = cells[n]
+			if cellsOver[n]:
+				_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
+				continue
+			incell = incellFunction(cellsMasks[n], positions, radii, [x,y,z], size, threshold)
+			if bisectCondition(size, incell, threshold, radii[cellsMasks[n]]):
+				_refineGridBisect(size, x, y, z, cellsMasks[n], incell, newCells, newCellsOver, newCellsMasks)
+			else:
+				_passCompleteCell([newCells, newCellsOver, newCellsMasks], [cells[n], True, True])
+		cells = newCells
+
+		if len(cells) == cellsNumber or iter == stopIter:
+			break
+		cellsNumber = len(cells)
+		cellsOver = newCellsOver
+		cellsMasks = newCellsMasks
+		newCells = []
+		newCellsOver = []
+		newCellsMasks = []
+		iter += 1
+	return np.array(cells)
+
 
 def occupancyIncell(mask, particlesPos, particlesRadii, cellPos, cellSize, threshold):
 	return np.sum( np.abs(particlesPos[mask] - cellPos - cellSize/2), axis = 1) < cellSize * 2
