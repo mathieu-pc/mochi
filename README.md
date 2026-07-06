@@ -1,4 +1,7 @@
 # MOCHI
+
+![Tests](https://github.com/mathieu-pc/mochi/actions/workflows/test.yaml/badge.svg)
+
 Mock Observation Cubes of HI
 
 Install:
