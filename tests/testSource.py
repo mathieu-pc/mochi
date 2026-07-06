@@ -1,0 +1,62 @@
+"""
+Create a set of particles in Mochi/martini dictionary format.
+The source created is unphysical and for illustrative purposes only.
+Borrows heavily from martini's demo_source.
+"""
+
+import numpy as np
+from astropy import units
+from scipy.spatial import KDTree
+
+def calculateNearestNeighbourDistance(xyz, neighbourNumber = 1):
+	dist, _ = KDTree(xyz).query(xyz, k = 1 + neighbourNumber)
+	return dist[:,-1]
+
+def generateTestParticles(N=500, neighbourNumber = 10):
+	phi = np.random.rand(N) * 2. * np.pi
+	r = np.abs(np.random.normal(3, 1.5, N))
+
+	x = np.random.rand(N) - 0.5
+	r /= np.sqrt(1-0.5 * np.cos(phi - 1.5 * (r-1))**2) #density wave
+	np.clip(r, 0, 9, out = r)
+
+	y = r * np.cos(phi) + (np.random.rand(N) - 0.5) * 0.6
+	z = r * np.sin(phi) + (np.random.rand(N) - 0.5) * 0.6
+	xyz_g = np.vstack((x, y, z)) * units.kpc
+	# arctan rotation curve
+	vphi = 50 * np.arctan(r)
+	vx = -vphi * np.sin(phi)
+	vy = vphi * np.cos(phi)
+	# small random z velocities
+	vz = (np.random.rand(N) * 2.0 - 1.0) * 5
+	vxyz_g = np.vstack((vx, vy, vz)) * units.km * units.s**-1
+	T_g = 20 * np.ones(N) * (units.km / units.s)**2
+	mHI_g = np.ones(N) + 0.01 * (np.random.rand(N) - 0.5)
+	mHI_g = mHI_g / mHI_g.sum() * 5.0e9 * units.Msun
+	xyz_g = np.moveaxis(xyz_g, 0, -1)
+	hsm_g = calculateNearestNeighbourDistance(xyz_g.value, 20) * xyz_g.unit
+	mask = hsm_g < 0.5 * units.kpc
+	hsm_g[mask] = 0.5 * units.kpc
+	vxyz_g = np.moveaxis(vxyz_g, 0, -1)
+	particles = {
+		"m": mHI_g,
+		"T_g": T_g,
+		"mHI_g": mHI_g,
+		"xyz_g": xyz_g,
+		"vxyz_g": vxyz_g,
+		"hsm_g": hsm_g
+	}
+	return particles
+
+if __name__ == "__main__":
+	particles = generateTestParticles()
+	from matplotlib import pyplot as plt
+	plt.plot(
+		particles["xyz_g"][:,1].value,
+		particles["xyz_g"][:,2].value,
+		'ko',
+		markersize = 5,
+		alpha = 0.1,
+		markeredgewidth=0.0
+	)
+	plt.show()
