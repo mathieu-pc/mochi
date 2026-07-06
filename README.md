@@ -1,10 +1,6 @@
 # MOCHI
 Mock Observation Cubes of HI
 
-Still WIP.
-
-Backwards compatibility is not expected.
-
 Install:
 ```
 pip install "git+https://github.com/mathieu-pc/mochi.git"
