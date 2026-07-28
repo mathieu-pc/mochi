@@ -11,4 +11,5 @@ def convolve(cube, beam, pixelSize, spectralSigma = 0, pad = 2):
 	if pad != 0:
 		padWidth = [(int(sigma * pad + 0.5),) * 2 for sigma in beamSigma]
 		unitlessCube = np.pad(unitlessCube, padWidth, 'constant', constant_values = 0)
-	return gaussian_filter(unitlessCube, sigma = beamSigma, mode = 'constant', cval = 0) * unit
+	convolvedCube = gaussian_filter(unitlessCube, sigma = beamSigma, mode = 'constant', cval = 0) * unit
+	return convolvedCube

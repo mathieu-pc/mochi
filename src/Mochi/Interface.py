@@ -10,40 +10,20 @@ from .PostProcessing import _astropyUnitWrap
 from .RadiativeTransfer import adaptiveOpticallyThin
 
 
-def makeCubeFromSource(source, kernel, pixelNumber, pixelSize, channelWidth, interpolant, **kwargs):
+def makeCubeFromSource(martiniSource, kernel, pixelNumber, pixelSize, channelWidth, interpolant, **kwargs):
 	"""
 	Make a MOCHI cube from a MARTINI source object.
-	Parameters
-	----------
-	source: MARTINI source
-		source to make a cube of
-	kernel: function
-		kernel for interpolation
-	pixelNumber: int
-		number of pixels
-	pixelSize: astropy.quantity
-		angular pixel size
-	channelWidth: astropy.quantity
-		channel width (velocity)
-	interpolant: function
-		MOCHI interppolant function
-	**kwargs:
-		kwargs are passed to Mochi.makeCube
-		
-	Returns
-	-------
-		Mochi.makeCube return value
 	"""
 	particles = {
-		"mHI_g": source.mHI_g,
-		"m": source.mHI_g,
-		"hsm_g": source.hsm_g,
-		"xyz_g": source.coordinates_g.get_xyz().T,
-		"vxyz_g": source.coordinates_g.differentials["s"].get_d_xyz().T,
-		"T_g": (source.T_g * constants.k_B / constants.m_p).decompose()
+		"mHI_g": martiniSource.mHI_g,
+		"m": martiniSource.mHI_g,
+		"hsm_g": martiniSource.hsm_g,
+		"xyz_g": martiniSource.coordinates_g.get_xyz().T,
+		"vxyz_g": martiniSource.coordinates_g.differentials["s"].get_d_xyz().T,
+		"T_g": (martiniSource.T_g * constants.k_B / constants.m_p).decompose()
 	}
-	return Mochi.makeCube(
-		source.distance,
+	cube = Mochi.makeCube(
+		martiniSource.distance,
 		particles,
 		kernel,
 		pixelNumber,
@@ -52,6 +32,7 @@ def makeCubeFromSource(source, kernel, pixelNumber, pixelSize, channelWidth, int
 		interpolant,
 		**kwargs
 	)
+	return cube
 
 
 def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, interpolant, radiativeTransferModel = adaptiveOpticallyThin,
@@ -64,48 +45,9 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 	):
 	"""
 	make a mock HI cube
-	Parameters
-	----------
-	distance:
-		distance to set mock galaxy at
-	particles: dictionary
-		particles dictionary of arrays
-			xyz_g:	positions
-			hsm_g:	smoothing lengths as kernel radius (MFM / SPH only)
-			mHI_g:	particle HI mass
-			m:	particle mass
-			T_g:	particle thermal velocity dispersions
-			vxyz_g:	particle velocity
-	kernel:
-		simulation smoothing kernel
-	pixelNumber: int
-		number of pixels
-	pixelSize:
-		angular pixel size
-	channelWidth:
-		channel size in velocity units
-	beam:
-		radio_beam Beam
-		Currently, only the beam major axis is used.
-		If None is passed, convolution will not be applied.
-	interpolant:
-		interpolation method (example: MFM or SPH)
-	adaptiveMode: bool
-		Adaptive resolution when interpolating fields is used if True.
-		Default: True.
-	resizeMode: bool
-		Resize the cube to match input pixel size if True.
-		Default: True.
-	pad: float
-		Pad by number of beam sigma before convolution.
-		default: 2.
-	Returns
-	-------
-	cube:
-		Mock HI cube with observation properties if resizeMode and convolveMode are True.
 	"""
 	if not adaptiveMode:
-		n, deltaX = getScanlineParamsFromObservationParams(np.min(particles["hsm_g"])/2, pixelNumber, pixelSize, distance)
+		n, deltaX = _getScanlineParamsFromObservationParams(np.min(particles["hsm_g"])/2, pixelNumber, pixelSize, distance)
 		cube = makeFixedCube( (n,) * 3, deltaX, particles, kernel, channelWidth, interpolant, radiativeTransferModel)
 	else:
 		cubeRange = (distance * pixelNumber * pixelSize.to(units.rad) / units.rad / 2).to(particles["xyz_g"].unit)
@@ -120,21 +62,27 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 			warnings.warn("Can't convolve when resizeMode is not True")
 	return cube
 
+
 def resize(cube, targetShape):
 	"""
-	resize a data cube to the target shape
+	Resize a data cube to the target shape.
+	Since MOCHI uses adaptive resolution and specific pixel resolutions are needed for mocks,
+	this step if often needed.
 	"""
 	if( np.all( np.array(cube.shape[1:]) == np.array(targetShape))):
-		print(cube.shape, targetShape)
-		return cube
+		resizedCube = cube
+		return resizedCube
 	targetShape = tuple(targetShape)
 	unitlessCube, unit = _astropyUnitWrap(cube)
 	result = np.zeros( (cube.shape[0],)+targetShape)
 	for i in range(cube.shape[0]):
 		result[i] = cv2.resize(unitlessCube[i].astype(float), targetShape[::-1], interpolation = cv2.INTER_AREA)
-	return result * np.prod(cube.shape[1:]) / np.prod(targetShape) * unit
+	# the normalization doesn't seem necessary, cv2.INTER_AREA preserves flux.
+	resizedCube = result * np.prod(cube.shape[1:]) / np.prod(targetShape) * unit
+	return resizedCube
 
-def getScanlineParamsFromObservationParams(scanlineResolution, pixelNumber, pixelSize, distance):
+
+def _getScanlineParamsFromObservationParams(scanlineResolution, pixelNumber, pixelSize, distance):
 	"""
 	Given a desired Scanline Resolution, returns the best number of scanline elements and best scanline resolution for observation parameters.
 	This serves to ensure that the cube's length remains an integer number of both the scanline elements and pixel sizes.
