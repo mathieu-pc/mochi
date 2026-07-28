@@ -41,7 +41,7 @@ def rm_api(app, exception):
 	if os.name == "nt":
 		os.system("rd /s /q api")
 	else:
-		s.system("rm -r api")
+		os.system("rm -r api")
 
 
 def setup(app):
