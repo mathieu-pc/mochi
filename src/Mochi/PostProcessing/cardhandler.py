@@ -2,22 +2,10 @@ from astropy.io import fits
 from astropy import units
 
 
-def makeCards(cube, pixelSize, channelSize, beam, **kwargs):
+def makeCards(cube, pixelSize, channelWidth, beam, **kwargs):
 	"""
-	Makes a python list of fits header cards
-
-	Parameters
-	----------
-	cube: astropy array
-		cube for which the cards need to be made
-	pixelSize: astropy quantity
-		cube pixel size
-	channelSize: astropy quantity
-		cube channel size
-	beam:	beam
-		convolution beam of the cube
-	**kwargs:
-		kwargs are turned into cards, with the key acting as the card keyword and the value as the value
+	Makes a python list of fits header cards.
+	The cards are made for a cube with a given pixelSize, channelWidth, and beam.
 	"""
 	cards = []
 	try:
@@ -25,9 +13,9 @@ def makeCards(cube, pixelSize, channelSize, beam, **kwargs):
 	except:
 		pass
 
-	cards += getAxisCards(1, - pixelSize.to(units.deg), (cube.shape[1]+1)/2, 180, "RA---TAN")
-	cards += getAxisCards(2, + pixelSize.to(units.deg), (cube.shape[2]+1)/2, 90, "DEC--TAN")
-	cards += getAxisCards(3, + channelSize.to(units.m / units.s), (cube.shape[0]+1)/2, 0, "VELO")
+	cards += _getAxisCards(1, - pixelSize.to(units.deg), (cube.shape[1]+1)/2, 180, "RA---TAN")
+	cards += _getAxisCards(2, + pixelSize.to(units.deg), (cube.shape[2]+1)/2, 90, "DEC--TAN")
+	cards += _getAxisCards(3, + channelSize.to(units.m / units.s), (cube.shape[0]+1)/2, 0, "VELO")
 
 	if not beam is None:
 		cards += [fits.Card("BMAJ", beam.major.to(units.deg).value)]
@@ -40,7 +28,7 @@ def makeCards(cube, pixelSize, channelSize, beam, **kwargs):
 	return cards
 
 
-def getAxisCards(axisNumber, delta, referenceIndex, referenceValue, type):
+def _getAxisCards(axisNumber, delta, referenceIndex, referenceValue, type):
 	result = []
 	axisStr = str(axisNumber)
 	try:

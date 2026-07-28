@@ -9,42 +9,21 @@ import numpy as np
 from functools import partial
 
 
-def isIterable(obj):
+def _isIterable(obj):
 	"""
 	Check if obj is iterable
-	
-	Parameters:
-	obj: 
-		object to check if iterable
-	returns:
-		bool
-		True if obj is iterable, False otherwise
 	"""
 	try:
 		iter(obj)
-		return True
+		isIterable = True
 	except TypeError:
-		return False
+		isIterable = False
+	return isIterable
 
 
-def evalKernel(xEval, xParticle, h, kernel):
+def _evalKernel(xEval, xParticle, h, kernel):
 	"""
 	Helper function to evaluate kernel
-
-	Parameters
-	----------
-	xEval:
-		positions at which to evaluate kernel
-	xParticle:
-		positions of particles for which to evaluate kernel
-	h:
-		particle smoothing lengths
-	kernel:
-		kernel function
-
-	Returns
-	-------
-		evaluation of kernel at xEval for particles at positions xParticle and smoothing lengths h
 	"""
 	q = distance.cdist(xEval/h, xParticle/h)
 	return kernel(q) / (h ** 3)
@@ -54,21 +33,21 @@ def _evalCacheKernel(q, kernelCache, kernelCacheResolution):
 	return kernelCache[(np.clip(q, 0, 1) * kernelCacheResolution).astype(np.uint8)]
 
 
-def sphLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCacheResolution, nPos, N, velocityUnit, massUnit, volumeUnit, maskOutOfBound):
+def sphLoop(M, MHI, particlesMomentum, T, H, dist, slices, cellsVolume, kernelCache, kernelCacheResolution, nPos, nParticles, velocityUnit, massUnit, volumeUnit, maskOutOfBound):
 	fieldMHI = np.zeros(nPos)
 	fieldM = np.zeros(nPos)
 	fieldV = np.zeros(nPos)
 	fieldT = np.zeros(nPos)
 	H3 = H ** 3
-	for i in range(N):
+	for i in range(nParticles):
 		if len(slices[i]) == 0:
 			continue
 		particleKernel = _evalCacheKernel(dist[i]/H[i], kernelCache, kernelCacheResolution) / H3[i]
 		if not maskOutOfBound[i]: #Since the particle is not out bound, we know the kernel should sum to 1. The kernel not summing to 1 is due to resolution effects.
-			particleKernel /= np.sum(particleKernel * cellVolumes[slices[i]])
+			particleKernel /= np.sum(particleKernel * cellsVolume[slices[i]])
 		fieldM[slices[i]] += particleKernel * M[i]
 		fieldMHI[slices[i]] += particleKernel * MHI[i]
-		fieldV[slices[i]] += particleKernel * P[i]
+		fieldV[slices[i]] += particleKernel * particlesMomentum[i]
 		fieldT[slices[i]] += particleKernel * T[i]
 	kernelSlice = fieldM != 0
 	finalV = np.zeros(nPos) * velocityUnit
@@ -76,17 +55,18 @@ def sphLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCache
 	finalMHI = fieldMHI * massUnit / volumeUnit
 	finalV[kernelSlice] = fieldV[kernelSlice] * velocityUnit / fieldM[kernelSlice]
 	finalT[kernelSlice] = fieldT[kernelSlice] * velocityUnit ** 2 / fieldM[kernelSlice]
-	return finalV, finalMHI, finalT
+	fields = finalV, finalMHI, finalT
+	return fields
 
 
-def mfmLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCacheResolution, nPos, N, velocityUnit, massUnit, volumeUnit, maskOutOfBound):
+def mfmLoop(M, MHI, particlesMomentum, T, H, dist, slices, cellsVolume, kernelCache, kernelCacheResolution, nPos, nParticles, velocityUnit, massUnit, volumeUnit, maskOutOfBound):
 	fieldMHI = np.zeros(nPos)
 	fieldM = np.zeros(nPos)
 	fieldV = np.zeros(nPos)
 	fieldT = np.zeros(nPos)
 	H3 = H ** 3
 	totalKernel = np.zeros(nPos)
-	for i in range(N):
+	for i in range(nParticles):
 		if len(slices[i]) == 0:
 			continue
 		particleKernel = _evalCacheKernel(dist[i]/H[i], kernelCache, kernelCacheResolution) / H3[i]
@@ -97,16 +77,16 @@ def mfmLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCache
 	fieldM = np.zeros(nPos)
 	fieldV = np.zeros(nPos)
 	fieldT = np.zeros(nPos)
-	for i in range(N):
+	for i in range(nParticles):
 		if len(slices[i]) == 0:
 			continue
 		particleKernel = _evalCacheKernel(dist[i]/H[i], kernelCache, kernelCacheResolution) / H3[i]
-		volume = np.sum( particleKernel * (cellVolumes[slices[i]] / totalKernel[slices[i]]) )
+		volume = np.sum( particleKernel * (cellsVolume[slices[i]] / totalKernel[slices[i]]) )
 		if maskOutOfBound[i]:
-			volume *=  np.pi*4/3 * H[i]**3 / np.sum(cellVolumes[slices[i]]) # for out of bounds particles, the volume is scaled up
+			volume *=  np.pi*4/3 * H[i]**3 / np.sum(cellsVolume[slices[i]]) # for out of bounds particles, the volume is scaled up
 		fieldMHI[slices[i]] += particleKernel * MHI[i] / volume
 		fieldM[slices[i]] += particleKernel * M[i] / volume
-		fieldV[slices[i]] += particleKernel * P[i] / volume
+		fieldV[slices[i]] += particleKernel * particlesMomentum[i] / volume
 		fieldT[slices[i]] += particleKernel * T[i] / volume
 	kernelSlice = totalKernel != 0
 	finalV = np.zeros(nPos) * velocityUnit
@@ -117,7 +97,8 @@ def mfmLoop(M, MHI, P, T, H, dist, slices, cellVolumes, kernelCache, kernelCache
 	finalM[kernelSlice] = fieldM[kernelSlice] / totalKernel[kernelSlice]
 	finalV[kernelSlice] = fieldV[kernelSlice] * velocityUnit / totalKernel[kernelSlice] / finalM[kernelSlice]
 	finalT[kernelSlice] = fieldT[kernelSlice] * velocityUnit ** 2 / totalKernel[kernelSlice] / finalM[kernelSlice]
-	return finalV, finalMHI, finalT
+	fields = finalV, finalMHI, finalT
+	return fields
 
 
 def _getOutOfBoundParticles(particlePos, particleRadius, fieldPos):
@@ -128,7 +109,7 @@ def _getOutOfBoundParticles(particlePos, particleRadius, fieldPos):
 	return maskOutOfBound
 
 
-def particleScatter(mainLoop, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, kernelCacheResolution = 256, **kwargs):
+def particleScatter(subInterpolant, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, kernelCacheResolution = 256, **kwargs):
 	kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution))
 	maskOutOfBound = _getOutOfBoundParticles(X, H, fieldPos)
 	M *= units.dimensionless_unscaled
@@ -136,16 +117,16 @@ def particleScatter(mainLoop, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, 
 	if(V.ndim != 1):
 		V = V[:,0] #more than one dimension of velocity is given, use radial velocity
 	nPos = len(fieldPos)
-	if not isIterable(dVolume):
+	if not _isIterable(dVolume):
 		dVolume = np.ones(nPos) * dVolume
 	slices, dist = lKDTree(fieldPos.value).query_radius(X.value, H.value, return_distance = True)
 	particleKernels = []
-	P = V.value * M.value
+	particlesMomentum = V.value * M.value
 	thermal = T.to_value(V.unit ** 2) * M.value
-	return mainLoop(
+	fields = subInterpolant(
 		M.value,
 		MHI.value,
-		P,
+		particlesMomentum,
 		thermal,
 		H.value,
 		dist,
@@ -160,9 +141,18 @@ def particleScatter(mainLoop, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, 
 		H.unit ** 3,
 		maskOutOfBound
 	)
+	return fields
 
-SPH = partial(particleScatter, sphLoop)
-MFM = partial(particleScatter, mfmLoop)
+
+def composeParticleScatter(subInterpolant):
+	def interpolant(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, kernelCacheResolution = 256, **kwargs):
+		fields = particleScatter(subInterpolant, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, kernelCacheResolution = 256, **kwargs)
+		return fields
+	return interpolant
+
+
+SPH = composeParticleScatter(sphLoop)
+MFM = composeParticleScatter(mfmLoop)
 
 
 def _evalVoronoiField(particleQuantities, nearestParticleIndices, missedParticleCellIndices, missedParticleMask, fieldNParticle):
@@ -175,40 +165,7 @@ def _evalVoronoiField(particleQuantities, nearestParticleIndices, missedParticle
 def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
 	"""
 	Compute the interpolated radial velocity, density and temperature fields using voronoi mesh.
-	Assumes that fieldPos creates a box.
-
-	Parameters
-	----------
-	X :
-		particle positions
-	V :
-		particle radial velocities
-	H : 
-		Unuseed.
-		(particle volume)**(-3)
-		Only used to convert MHI into a particle density.
-		Exact volume is not required if you know the density. 
-	MHI :
-		particle HI mass
-	T :
-		particle temperature in V**2 units
-	M :
-		particle mass (unused)
-	kernel :
-		unused
-	fieldPos :
-		positions at which to interpolate fields.
-	dVolume :
-		volume element size for fieldPos
-
-	Returns
-	-------
-	fieldV : array astropy quantity
-		interpolated velocity
-	fieldMHI : array astropy quantity
-		interpolated HI mass
-	fieldT : array atropy quantity
-		interpolated thermal velocity dispersion
+	Assumes that fieldPos creates a box.W
 	"""
 
 	M *= units.dimensionless_unscaled
@@ -239,7 +196,8 @@ def voronoiMesh(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
 	fieldV =  _evalVoronoiField(V, nearestParticleIndices, missedParticleCellIndices, missedParticleMask, fieldNParticle)
 	fieldMHI = _evalVoronoiField(density, nearestParticleIndices, missedParticleCellIndices, missedParticleMask, fieldNParticle)
 	fieldT =  _evalVoronoiField(T, nearestParticleIndices, missedParticleCellIndices, missedParticleMask, fieldNParticle)
-	return fieldV, fieldMHI, fieldT
+	fields = fieldV, fieldMHI, fieldT
+	return fields
 
 
 def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
@@ -249,43 +207,13 @@ def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
 	This interpolant assumes that the conserved quantities are interpolated.
 	This SPH interpolant serves for testing purposes and writes the equations out explicitely.
 	Consequently, it is slow but safe.
-
-	Parameters
-	----------
-	X :
-		particle positions
-	V :
-		particle radial velocities
-	H : 
-		particle smoothing lengths
-	MHI :
-		particle HI mass
-	T :
-		particle temperature in V**2 units
-	M :
-		particle mass
-	kernel :
-		kernel used in simulation
-	fieldPos :
-		positions at which to interpolate fields.
-	dVolume :
-		volume element size.
-
-	Returns
-	-------
-	finalV : array astropy quantity
-		interpolated velocity
-	fieldMHI : array astropy quantity
-		interpolated HI mass
-	final T : array atropy quantity
-		interpolated thermal velocity dispersion
 	"""
 	M *= units.dimensionless_unscaled
 	N, nDim = X.shape
 	if(V.ndim != 1):
 		V = V[:,0] #more than one dimension of velocity is given, use radial velocity
 	nPos = len(fieldPos)
-	if not isIterable(dVolume):
+	if not _isIterable(dVolume):
 		dVolume = np.ones(nPos) * dVolume
 	slices = KDTree(fieldPos).query_ball_point(X, H)
 	particleKernels = []
@@ -294,7 +222,7 @@ def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
 	fieldV = np.zeros(nPos) * V.unit * M.unit / dVolume.unit
 	fieldT = np.zeros(nPos) * V.unit ** 2 * M.unit / dVolume.unit
 	for i in range(N):
-		particleKernel = evalKernel(fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i], kernel)[:,0]
+		particleKernel = _evalKernel(fieldPos[slices[i]], X[i].reshape((1, nDim)), H[i], kernel)[:,0]
 		fieldM[slices[i]] += particleKernel * M[i]
 		fieldMHI[slices[i]] += particleKernel * MHI[i]
 		fieldV[slices[i]] += particleKernel * V[i] * M[i] #quantity of movement is conserved
@@ -305,5 +233,6 @@ def manualSPH(X, V, H, MHI, T, M, kernel, fieldPos, dVolume, **kwargs):
 	finalT = np.zeros(nPos) * V.unit ** 2
 	finalV[kernelSlice] = fieldV[kernelSlice] / fieldM[kernelSlice]
 	finalT[kernelSlice] = fieldT[kernelSlice] / fieldM[kernelSlice]
-	return finalV, fieldMHI, finalT
+	fields = finalV, fieldMHI, finalT
+	return fields
 
