@@ -103,7 +103,7 @@ Argument_Dictionary = TrackingDictionary({
 		indent + "Mask (Boolean) of particles occupying input cell.",
 	"mask": numpyArray +
 		indent + "Mask (Boolean).",
-	"particlesPos": "array\n" +
+	"particlesPos": numpyArray +
 		indent + "Nx3 unitless array of particle positions.",
 	"X": "array\n" +
 		indent + "Nx3 particle positions.",
@@ -135,13 +135,13 @@ Argument_Dictionary = TrackingDictionary({
 		indent + "This parameter sets the number of points used for kernel evaluation.",
 	"kernelCache": "array\n" +
 		indent + "Array of kernel values at regular intervals.",
-	"particlesRadii": "array\n" +
+	"particlesRadii": numpyArray +
 		indent + "N unitless array of particle radii.",
-	"cell": "array\n" +
+	"cell": numpyArray +
 		indent + "4 array of cell x,y,z lower corner position and length.",
 	"threshold": "?\n" +
 		indent + "Sensitivity.",
-	"incellParticleMask": "array\n" +
+	"incellParticleMask": numpyArray +
 		indent + "Mask of particles cell needs to consider for operations.",
 	"isCountOverThreshold": "bool\n" +
 		indent + "True if the number of non-zero values of the input mask is greater than threshold.",
