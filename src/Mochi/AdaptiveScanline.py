@@ -11,13 +11,13 @@ from functools import partial
 from . import RadiativeTransfer
 
 
-def _refineGridBisect(size, x, y, z, particleIndices, incell, newCells, newCellsOver, newCellsParticleIndices):
+def _refineGridBisect(cell, particleIndices, incell, newCells, newCellsOver, newCellsParticleIndices):
 	"""
 	Bisect operation for refine grid algorithms
 	"""
-	newSize = size / 2.0
+	newSize = cell[-1] / 2.0
 	newCells.extend([
-		(x + dx * newSize, y + dy * newSize, z + dz * newSize, newSize) 
+		(cell[0] + dx * newSize, cell[1] + dy * newSize, cell[2] + dz * newSize, newSize) 
 		for dx in range(2) for dy in range(2) for dz in range(2)
 	])
 	newCellsOver.extend([False] * 8)
@@ -29,7 +29,7 @@ def _passCompleteCell(cellsLists, contentList):
 		cellsLists[i].append(contentList[i])
 
 
-def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRadii, threshold, stopIter = 8):
+def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRadii, threshold, stopIter):
 	"""
 	Starting from a coarse grid, refine until no cell satisfy bisectCondition.
 	"""
@@ -43,13 +43,12 @@ def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRa
 	iter = 0
 	while iter < stopIter:
 		for n in range(cellsNumber):
-			x, y, z, size = cells[n]
 			if cellsOver[n]:
 				_passCompleteCell([newCells, newCellsOver, newCellsParticleIndices], [cells[n], True, True])
 				continue
 			incell = particleSelection(cellsParticleIndices[n], positions, particlesRadii, cells[n], threshold)
 			if bisectCondition(incell):
-				_refineGridBisect(size, x, y, z, cellsParticleIndices[n], incell, newCells, newCellsOver, newCellsParticleIndices)
+				_refineGridBisect(cells[n], cellsParticleIndices[n], incell, newCells, newCellsOver, newCellsParticleIndices)
 			else:
 				_passCompleteCell([newCells, newCellsOver, newCellsParticleIndices], [cells[n], True, True])
 		cells = newCells
@@ -93,6 +92,7 @@ def intersectIncell(mask, particlesPos, particlesRadii, cell, threshold):
 	intersectingSmallParticleMask = (np.linalg.norm(particlesPos[mask] - cell[:3] - cell[3]/2, axis = 1) < particlesRadii[mask] + cell[3] * RF) & smallParticle
 	return intersectingSmallParticleMask
 
+
 refineGridToParticleScale = composeRefinementStrategy(intersectIncell, np.any)
 refineGridToOccupancy = composeRefinementStrategy(occupancyIncell, isNotSingleOccupancy)
 
@@ -127,7 +127,6 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelWidth, radia
 	*,
 	initialGridSize = 2,
 	threshold = 0.5,
-	minimumElement = 1 * units.kpc,
 	refinementAlgorithm = refineGridToParticleScale,
 	**kwargs
 	):
@@ -142,12 +141,10 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelWidth, radia
 		for z in np.linspace(*xyzRange[2], initialGridSize, endpoint = False)
 	]
 	positions = (particles["xyz_g"] / xRange[0].unit).decompose().value
-	minRadius = (minimumElement / xRange[0].unit).decompose().value
 	if particles["hsm_g"] is None:
-		radii = np.ones(len(positions)) * minRadius
+		radii = np.ones(len(positions))
 	else:
 		radii = (particles["hsm_g"] / xRange[0].unit).decompose().value
-		radii[radii < minRadius] = minRadius
 	finalCells = refinementAlgorithm(initialCells, positions, radii, threshold)
 	cellCentres = _getCellCentres(finalCells) * particles["xyz_g"].unit
 	cellsVolume = _getCellVolumes(finalCells) * particles["xyz_g"].unit ** 3
