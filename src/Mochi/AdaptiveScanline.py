@@ -29,7 +29,7 @@ def _passCompleteCell(cellsLists, contentList):
 		cellsLists[i].append(contentList[i])
 
 
-def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRadii, threshold, stopIter = 8):
+def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRadii, threshold, stopIter):
 	"""
 	Starting from a coarse grid, refine until no cell satisfy bisectCondition.
 	"""
