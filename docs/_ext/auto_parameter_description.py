@@ -161,8 +161,6 @@ Argument_Dictionary = TrackingDictionary({
 		indent + "Collapses fields into mock cube.",
 	"initialGridSize": "int\n" +
 		indent + "Number of elements in initial grid before refinement.",
-	"minimumElement": astropyQuantity +
-		indent + "Minimum particle radius for grid refinement.",
 	"kwargs": "kwargs\n" +
 		indent + "Function kwargs.",
 	"nPos": "int\n" +

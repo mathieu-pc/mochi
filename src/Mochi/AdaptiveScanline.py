@@ -127,7 +127,6 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelWidth, radia
 	*,
 	initialGridSize = 2,
 	threshold = 0.5,
-	minimumElement = 1 * units.kpc,
 	refinementAlgorithm = refineGridToParticleScale,
 	**kwargs
 	):
@@ -142,12 +141,10 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelWidth, radia
 		for z in np.linspace(*xyzRange[2], initialGridSize, endpoint = False)
 	]
 	positions = (particles["xyz_g"] / xRange[0].unit).decompose().value
-	minRadius = (minimumElement / xRange[0].unit).decompose().value
 	if particles["hsm_g"] is None:
-		radii = np.ones(len(positions)) * minRadius
+		radii = np.ones(len(positions))
 	else:
 		radii = (particles["hsm_g"] / xRange[0].unit).decompose().value
-		radii[radii < minRadius] = minRadius
 	finalCells = refinementAlgorithm(initialCells, positions, radii, threshold)
 	cellCentres = _getCellCentres(finalCells) * particles["xyz_g"].unit
 	cellsVolume = _getCellVolumes(finalCells) * particles["xyz_g"].unit ** 3
