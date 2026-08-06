@@ -11,13 +11,13 @@ from functools import partial
 from . import RadiativeTransfer
 
 
-def _refineGridBisect(size, x, y, z, particleIndices, incell, newCells, newCellsOver, newCellsParticleIndices):
+def _refineGridBisect(cell, particleIndices, incell, newCells, newCellsOver, newCellsParticleIndices):
 	"""
 	Bisect operation for refine grid algorithms
 	"""
-	newSize = size / 2.0
+	newSize = cell[-1] / 2.0
 	newCells.extend([
-		(x + dx * newSize, y + dy * newSize, z + dz * newSize, newSize) 
+		(cell[0] + dx * newSize, cell[1] + dy * newSize, cell[2] + dz * newSize, newSize) 
 		for dx in range(2) for dy in range(2) for dz in range(2)
 	])
 	newCellsOver.extend([False] * 8)
@@ -43,13 +43,12 @@ def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRa
 	iter = 0
 	while iter < stopIter:
 		for n in range(cellsNumber):
-			x, y, z, size = cells[n]
 			if cellsOver[n]:
 				_passCompleteCell([newCells, newCellsOver, newCellsParticleIndices], [cells[n], True, True])
 				continue
 			incell = particleSelection(cellsParticleIndices[n], positions, particlesRadii, cells[n], threshold)
 			if bisectCondition(incell):
-				_refineGridBisect(size, x, y, z, cellsParticleIndices[n], incell, newCells, newCellsOver, newCellsParticleIndices)
+				_refineGridBisect(cells[n], cellsParticleIndices[n], incell, newCells, newCellsOver, newCellsParticleIndices)
 			else:
 				_passCompleteCell([newCells, newCellsOver, newCellsParticleIndices], [cells[n], True, True])
 		cells = newCells
@@ -92,6 +91,7 @@ def intersectIncell(mask, particlesPos, particlesRadii, cell, threshold):
 	smallParticle = particlesRadii[mask] * threshold < cell[3] 	#No need to consider particles larger than cell
 	intersectingSmallParticleMask = (np.linalg.norm(particlesPos[mask] - cell[:3] - cell[3]/2, axis = 1) < particlesRadii[mask] + cell[3] * RF) & smallParticle
 	return intersectingSmallParticleMask
+
 
 refineGridToParticleScale = composeRefinementStrategy(intersectIncell, np.any)
 refineGridToOccupancy = composeRefinementStrategy(occupancyIncell, isNotSingleOccupancy)
