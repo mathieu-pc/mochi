@@ -15,7 +15,7 @@ def makeCards(cube, pixelSize, channelWidth, beam, **kwargs):
 
 	cards += _getAxisCards(1, - pixelSize.to(units.deg), (cube.shape[1]+1)/2, 180, "RA---TAN")
 	cards += _getAxisCards(2, + pixelSize.to(units.deg), (cube.shape[2]+1)/2, 90, "DEC--TAN")
-	cards += _getAxisCards(3, + channelSize.to(units.m / units.s), (cube.shape[0]+1)/2, 0, "VELO")
+	cards += _getAxisCards(3, + channelWidth.to(units.m / units.s), (cube.shape[0]+1)/2, 0, "VELO")
 
 	if not beam is None:
 		cards += [fits.Card("BMAJ", beam.major.to(units.deg).value)]
