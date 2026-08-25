@@ -10,7 +10,7 @@ from .utils import _astropyUnitWrap, _convertBeamToBeamSigma
 
 def getMassFromFlux(flux, beam, pixelSize, channelWidth, distance):
 	beamArea = (beam.sr/(pixelSize**2)).decompose()
-	mass = 2.356e5 * (distance / units.Mpc).decompose()**2 * (flux / units.Jy / units.beam).decompose() / beamArea * (channelWidth/(units.km / units.s)).decompose() * units.Msun
+	mass = 2.356e5 * (distance / units.Mpc).decompose()**2 * (flux / units.Jy * units.beam).decompose() / beamArea * (channelWidth/(units.km / units.s)).decompose() * units.Msun
 	return mass
 
 def getJyFromMass(cube, beam, pixelSize, channelWidth, distance):
