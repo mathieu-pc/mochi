@@ -15,6 +15,6 @@ def getMassFromFlux(flux, beam, pixelSize, channelWidth, distance):
 
 def getJyFromMass(cube, beam, pixelSize, channelWidth, distance):
 	converter = getMassFromFlux(1 * units.Jy, beam, pixelSize, channelWidth, distance)
-	flux = (cube / converter).decompose() * units.Jy / units.beam
+	flux = (cube / converter).decompose() * units.Jy
 	return flux
 
