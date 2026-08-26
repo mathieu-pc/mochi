@@ -63,6 +63,7 @@ def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRa
 		newCellsParticleIndices = []
 		iter += 1
 	refinedCells = np.array(cells)
+	print(iter)
 	return refinedCells
 
 
@@ -105,23 +106,6 @@ def _getCellVolumes(cells):
 	"""Return a N numpy array of the cell volumes."""
 	return cells[:,-1]**3
 
-def _createRegularArray(cells, xyzRange, dtype = np.uintc):
-	"""Converts an adaptive set of cells into a regular array"""
-	xyz0 = np.min(cells, axis = 0)
-	dx = xyz0[-1]
-	xyz0[-1] = 0
-	grid_shape = [ int((myRange[1]-myRange[0])//dx) for myRange in xyzRange]
-	N = len(cells)
-	cellRange = np.arange(N, dtype = dtype)
-	grid = np.empty(grid_shape, dtype = dtype)#np.empty(grid_shape, dtype=int) #grid = np.full(grid_shape, np.prod(grid_shape)+10, dtype = int) slower but good for testing
-	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(int)
-	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(int)
-	for i in cellRange:
-		x_start, y_start, z_start = cellsBegin[i]
-		x_end, y_end, z_end = cellsFinish[i]
-		grid[x_start:x_end, y_start:y_end, z_start:z_end] = i
-	dvolume = dx ** 3
-	return grid, dvolume
 
 def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelWidth, radiativeTransferModel,
 	*,
@@ -160,10 +144,10 @@ def makeAdaptiveCube(particles, xRange, interpolant, kernel, channelWidth, radia
 		cellsVolume,
 		**kwargs
 	)
-	cubeFieldIndices, finalCellVolume = _createRegularArray(finalCells, xyzRange)
-	finalCellVolume *= cellsVolume.unit
-	cubeShape = cubeFieldIndices.shape
-	cubeFieldIndices = cubeFieldIndices.flatten()#a
+
+	dx = np.min(finalCells[:, -1])
+	finalCellVolume = dx ** 3 * cellsVolume.unit
+	cubeShape = [ int((myRange[1]-myRange[0])//dx) for myRange in xyzRange]
 	return radiativeTransferModel(
 		fieldMHI,
 		fieldV,
