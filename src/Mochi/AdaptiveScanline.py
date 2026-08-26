@@ -63,7 +63,6 @@ def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRa
 		newCellsParticleIndices = []
 		iter += 1
 	refinedCells = np.array(cells)
-	print(iter)
 	return refinedCells
 
 
