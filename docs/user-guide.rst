@@ -1,8 +1,6 @@
 User Guide
 ==========
 
-This is my handwritten documentation.
-
 Installation
 ------------
 

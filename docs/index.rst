@@ -14,5 +14,6 @@ Mock Observation Cubes in HI is a mock imaging software.
    :caption: Contents:
 
    user-guide
+   composition-refinement
    api/modules
 
