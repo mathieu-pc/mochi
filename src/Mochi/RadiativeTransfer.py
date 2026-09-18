@@ -33,7 +33,7 @@ def calculateFieldSpectrum(fieldM, fieldV, fieldT, cellsVolume, channelWidth):
 	nChannel = getChannelNumber(fieldV, fieldM, fieldT, channelWidth)
 	spectrumRange = (channelWidth * (np.arange(nChannel) - (nChannel-1)/2))
 	fieldT[fieldM==0] = 1 * fieldT.unit
-	numerator = fieldM / np.sqrt(2*np.pi*fieldT) * channelWidth * cellsVolume
+	numerator = fieldM / np.sqrt(2 * np.pi * fieldT) * channelWidth * cellsVolume
 	diff = fieldV[None, ...] - spectrumRange[:, None]
 	fieldSpectrum = numerator * np.exp(-diff**2 / (2 * fieldT[None, ...]))
 	return fieldSpectrum
@@ -61,22 +61,21 @@ def opticallyThin(fieldMHI, fieldV, fieldT, channelWidth, dVolume, volumeShape,
 	return cube
 
 
-def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellsVolume, volumeShape, cells = None, cellUnit = dimensionless_unscaled, *, indexType = np.uintc, defaultRenderer = opticallyThin, **kwargs):
+def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, cells = None, cellUnit = dimensionless_unscaled, *, indexType = np.uintc, defaultRenderer = opticallyThin, **kwargs):
 	if cells is None:
 		warnings.warn("cells is expected, will attempt defaulting to " + defaultRenderer.__name__, UserWarning)
 		cube = defaultRenderer(fieldMHI, fieldV, fieldT, channelWidth, cellsVolume, volumeShape, **kwargs)
 		return cube
 	xyz0 = np.min(cells, axis = 0)
 	dx = xyz0[-1]
-	elementVolume = dx ** 3 * cellUnit ** 3
 	xyz0[-1] = 0
 	N = len(cells)
+	cellVolumes = cellVolume * cells[:, -1] / dx  # scaling by depth axis which is integrated
 	cellRange = np.arange(N, dtype = indexType)
 	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(indexType)
 	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(indexType)
-	fieldSpectra = calculateFieldSpectrum(fieldMHI, fieldV, fieldT, elementVolume, channelWidth)
+	fieldSpectra = calculateFieldSpectrum(fieldMHI, fieldV, fieldT, cellVolumes, channelWidth)
 	cubeUnit = fieldSpectra.unit
-	fieldSpectra *= cellsFinish[:,0] - cellsBegin[:,0]
 	fieldSpectra = fieldSpectra[:,:,None,None].value
 	cube = np.zeros((fieldSpectra.shape[0], volumeShape[1], volumeShape[2]))
 	for i in cellRange:

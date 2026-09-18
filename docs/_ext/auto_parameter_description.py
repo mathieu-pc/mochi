@@ -128,6 +128,8 @@ Argument_Dictionary = TrackingDictionary({
 		indent + "Has units.",
 	"cellsVolume": numpyArray +
 		indent + "Unitless array of cell volumes.",
+	"cellVolume": astropyQuantity +
+		indent + "Volume of smallest cell.",
 	"kernelCacheResolution": "int\n" +
 		indent + "Number of resolution elements in kernel cache.\n" +
 		indent + "To avoid costly kernel evaluations, the kernel is evaluated onto discrete points.\n" +
