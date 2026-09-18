@@ -11,7 +11,7 @@ from Mochi import Interpolants
 from Mochi import RadiativeTransfer
 import Mochi
 
-from testSource import generateTestParticles
+from tests.testSource import generateTestParticles
 
 kernel = _QuarticSplineKernel().kernel #Mochi accepts base martini kernels
 np.random.seed(0)
