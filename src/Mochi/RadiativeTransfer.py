@@ -61,6 +61,44 @@ def opticallyThin(fieldMHI, fieldV, fieldT, channelWidth, dVolume, volumeShape,
 	return cube
 
 
+def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
+	nChannel = getChannelNumber(fieldV, fieldM, fieldT, channelWidth)
+	spectrumRange = (np.arange(nChannel) - (nChannel-1)/2).reshape(nChannel).astype(int)
+
+
+	channelDispersion = np.array((fieldT / channelWidth ** 2).decompose())
+	span = np.sqrt(channelDispersion) * nSigma
+	mean = np.array((fieldV / channelWidth).decompose())
+
+	channelRanges = np.column_stack(((mean - span).astype(int), (mean + span + 0.6).astype(int)))
+	np.clip(channelRanges, spectrumRange[0], spectrumRange[-1], out = channelRanges)
+	centralChannel = (mean).astype(int)
+	np.clip(centralChannel, spectrumRange[0], spectrumRange[-1], out = centralChannel)
+
+	difference = channelRanges[:,1] - channelRanges[:,0]
+	cumulative = np.cumulative_sum(difference, include_initial = True)
+
+	cellIndices = np.arange(len(fieldM))
+	cellIndices = np.repeat(cellIndices, difference)
+
+	cellRanges = np.column_stack((cumulative[:-1], cumulative[1:]))
+	cellStartIndices = cumulative[:-1]
+	cellEndIndices = cumulative[1:]
+
+	channelDiff = np.arange(len(cellIndices)) - cumulative[cellIndices] - (difference[cellIndices] - difference[cellIndices] % 2) / 2
+	fieldSpectrum = np.exp( - channelDiff ** 2 / (2 * channelDispersion[cellIndices]))
+	cumulativeSpectrum = np.cumulative_sum(fieldSpectrum, include_initial = True)
+	weights = channelDispersion
+	weights[weights != 0] = 1 / np.sqrt(2 * np.pi * channelDispersion[weights != 0])
+	weights *= fieldM.value
+	fieldSpectrum *= weights[cellIndices]
+
+	offset = np.max(np.abs(channelRanges))
+	channelRanges += offset
+
+	return fieldSpectrum * fieldM.unit, cellRanges, channelRanges
+
+
 def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, cells = None, cellUnit = dimensionless_unscaled, *, indexType = np.uintc, defaultRenderer = opticallyThin, **kwargs):
 	if cells is None:
 		warnings.warn("cells is expected, will attempt defaulting to " + defaultRenderer.__name__, UserWarning)
@@ -74,13 +112,13 @@ def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, vo
 	cellRange = np.arange(N, dtype = indexType)
 	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(indexType)
 	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(indexType)
-	fieldSpectra = calculateFieldSpectrum(fieldMHI, fieldV, fieldT, cellVolumes, channelWidth)
+	fieldSpectra, cellRanges, channelRanges = _calculateFieldSpectrum(fieldMHI * cellVolumes, fieldV, fieldT, channelWidth)
 	cubeUnit = fieldSpectra.unit
-	fieldSpectra = fieldSpectra[:,:,None,None].value
-	cube = np.zeros((fieldSpectra.shape[0], volumeShape[1], volumeShape[2]))
+	fieldSpectra = fieldSpectra[:, None, None].value
+	cube = np.zeros((np.max(channelRanges[:,1]), volumeShape[1], volumeShape[2]))
 	for i in cellRange:
 		x_start, y_start, z_start = cellsBegin[i]
 		x_end, y_end, z_end = cellsFinish[i]
-		cube[:,y_start:y_end, z_start:z_end] += fieldSpectra[:,i]
+		cube[channelRanges[i,0]:channelRanges[i,1], y_start:y_end, z_start:z_end] += fieldSpectra[cellRanges[i,0]:cellRanges[i,1]]
 	cube = np.flip(np.moveaxis(cube, 1, 2), axis = 2) * cubeUnit
 	return cube
