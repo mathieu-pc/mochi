@@ -99,7 +99,7 @@ def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
 	return fieldSpectrum * fieldM.unit, cellRanges, channelRanges
 
 
-def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, cells = None, cellUnit = dimensionless_unscaled, *, indexType = np.uintc, defaultRenderer = opticallyThin, **kwargs):
+def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, cells = None, *, indexType = np.uintc, defaultRenderer = opticallyThin, **kwargs):
 	if cells is None:
 		warnings.warn("cells is expected, will attempt defaulting to " + defaultRenderer.__name__, UserWarning)
 		cube = defaultRenderer(fieldMHI, fieldV, fieldT, channelWidth, cellsVolume, volumeShape, **kwargs)
@@ -121,4 +121,23 @@ def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, vo
 		x_end, y_end, z_end = cellsFinish[i]
 		cube[channelRanges[i,0]:channelRanges[i,1], y_start:y_end, z_start:z_end] += fieldSpectra[cellRanges[i,0]:cellRanges[i,1]]
 	cube = np.flip(np.moveaxis(cube, 1, 2), axis = 2) * cubeUnit
+	return cube
+
+def adaptiveNoTransfer(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, cells = None, *, indexType = np.uintc, **kwargs):
+	assert not cells is None
+	xyz0 = np.min(cells, axis = 0)
+	dx = xyz0[-1]
+	xyz0[-1] = 0
+	N = len(cells)
+	#cellVolumes = cells[:, -1] ** 3
+	cellRange = np.arange(N, dtype = indexType)
+	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(indexType)
+	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(indexType)
+	cubeUnit = fieldMHI.unit
+	cube = np.zeros(volumeShape)
+	for i in cellRange:
+		x_start, y_start, z_start = cellsBegin[i]
+		x_end, y_end, z_end = cellsFinish[i]
+		cube[x_start:x_end, y_start:y_end, z_start:z_end] += fieldMHI[i].value
+	cube = np.flip(np.moveaxis(cube, 1, 2), axis = 2) * cubeUnit * cellVolume
 	return cube
