@@ -35,8 +35,9 @@ def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRa
 	completeCellsParticleIndices = []
 	iter = 0
 	while iter < stopIter:
+		selectedParticles = particleSelection(cells, cellsParticleIndices, positions, particlesRadii, threshold)
 		for n in range(cellsNumber):
-			incell = particleSelection(cellsParticleIndices[n], positions, particlesRadii, cells[n], threshold)
+			incell = selectedParticles[n]
 			if bisectCondition(incell):
 				_refineGridBisect(cells[n], cellsParticleIndices[n], incell, newCells, newCellsParticleIndices)
 			else:
@@ -56,8 +57,16 @@ def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRa
 	return refinedCells
 
 
-def occupancyIncell(mask, particlesPos, particlesRadii, cell, threshold):
-	occupyingParticlesMask = np.sum( np.abs(particlesPos[mask] - cell[:3] - cell[3]/2), axis = 1) < cell[3] * 2
+def occupancyIncell(cells, masks, particlesPos, particlesRadii, threshold):
+	cellsIndices = np.repeat(np.arange(len(cells)), [len(mask) for mask in masks])
+	particlesIndices = np.concatenate(masks)
+	cellsArray = np.array(cells)
+	boxDistances = np.abs(cellsArray[cellsIndices,:-1] + cellsArray[cellsIndices,-1][:,np.newaxis] / 2 - particlesPos[particlesIndices])
+	occupyingParticlesMask = np.all(boxDistances < cellsArray[cellsIndices, -1][:, np.newaxis] / 2, axis = 1)
+	occupyingParticlesMask = np.split(
+		occupyingParticlesMask,
+		np.cumsum([len(mask) for mask in masks[:-1]])
+	)
 	return occupyingParticlesMask
 
 
@@ -77,10 +86,22 @@ def composeRefinementStrategy(particleSelection, bisectCondition):
 RF = np.sqrt(3)/2				#factor to convert cell size into effective radius contribution. Taken as max possible
 
 
-def intersectIncell(mask, particlesPos, particlesRadii, cell, threshold):
-	smallParticle = particlesRadii[mask] * threshold < cell[3] 	#No need to consider particles larger than cell
-	intersectingSmallParticleMask = (np.linalg.norm(particlesPos[mask] - cell[:3] - cell[3]/2, axis = 1) < particlesRadii[mask] + cell[3] * RF) & smallParticle
-	return intersectingSmallParticleMask
+def intersectIncell(cells, masks, particlesPos, particlesRadii, threshold):
+	cellsIndices = np.repeat(np.arange(len(cells)), [len(mask) for mask in masks])
+	particlesIndices = np.concatenate(masks)
+	cellsArray = np.array(cells)
+	distances = np.linalg.norm(
+		cellsArray[cellsIndices,:-1] + cellsArray[cellsIndices,-1][:,np.newaxis] / 2 - particlesPos[particlesIndices],
+		axis = 1
+	)
+	isInside = distances < particlesRadii[particlesIndices] + cellsArray[cellsIndices,-1] * RF
+	isSmall = particlesRadii[particlesIndices] * threshold < cellsArray[cellsIndices,-1]
+	intersectingSmallParticleIndices = isInside & isSmall
+	intersectingSmallParticleIndices = np.split(
+		intersectingSmallParticleIndices,
+		np.cumsum([len(mask) for mask in masks[:-1]])
+	)
+	return intersectingSmallParticleIndices
 
 
 refineGridToParticleScale = composeRefinementStrategy(intersectIncell, np.any)
