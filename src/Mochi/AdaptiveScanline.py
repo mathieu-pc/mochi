@@ -11,7 +11,7 @@ from functools import partial
 from . import RadiativeTransfer
 
 
-def _refineGridBisect(cell, particleIndices, incell, newCells, newCellsOver, newCellsParticleIndices):
+def _refineGridBisect(cell, particleIndices, incell, newCells, newCellsParticleIndices):
 	"""
 	Bisect operation for refine grid algorithms
 	"""
@@ -20,13 +20,7 @@ def _refineGridBisect(cell, particleIndices, incell, newCells, newCellsOver, new
 		(cell[0] + dx * newSize, cell[1] + dy * newSize, cell[2] + dz * newSize, newSize) 
 		for dx in range(2) for dy in range(2) for dz in range(2)
 	])
-	newCellsOver.extend([False] * 8)
 	newCellsParticleIndices.extend([particleIndices[incell]] * 8)
-
-
-def _passCompleteCell(cellsLists, contentList):
-	for i in range(len(cellsLists)):
-		cellsLists[i].append(contentList[i])
 
 
 def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRadii, threshold, stopIter):
@@ -34,35 +28,31 @@ def refineGrid(particleSelection, bisectCondition, cells, positions, particlesRa
 	Starting from a coarse grid, refine until no cell satisfy bisectCondition.
 	"""
 	cellsNumber = len(cells)
-	cellsOver = np.zeros(cellsNumber, dtype = bool)
 	cellsParticleIndices = [np.arange(len(particlesRadii))] * cellsNumber
 	newCells = []
-	newCellsOver = []
+	completeCells = []
 	newCellsParticleIndices = []
-
+	completeCellsParticleIndices = []
 	iter = 0
 	while iter < stopIter:
 		for n in range(cellsNumber):
-			if cellsOver[n]:
-				_passCompleteCell([newCells, newCellsOver, newCellsParticleIndices], [cells[n], True, True])
-				continue
 			incell = particleSelection(cellsParticleIndices[n], positions, particlesRadii, cells[n], threshold)
 			if bisectCondition(incell):
-				_refineGridBisect(cells[n], cellsParticleIndices[n], incell, newCells, newCellsOver, newCellsParticleIndices)
+				_refineGridBisect(cells[n], cellsParticleIndices[n], incell, newCells, newCellsParticleIndices)
 			else:
-				_passCompleteCell([newCells, newCellsOver, newCellsParticleIndices], [cells[n], True, True])
+				completeCells += [cells[n]]
 		cells = newCells
-
-		if len(cells) == cellsNumber or iter == stopIter:
-			break
 		cellsNumber = len(cells)
-		cellsOver = newCellsOver
+		if cellsNumber == 0:
+			break
+		iter += 1
+		if iter == stopIter:
+			completeCells += newCells
+			break
 		cellsParticleIndices = newCellsParticleIndices
 		newCells = []
-		newCellsOver = []
 		newCellsParticleIndices = []
-		iter += 1
-	refinedCells = np.array(cells)
+	refinedCells = np.array(completeCells)
 	return refinedCells
 
 
