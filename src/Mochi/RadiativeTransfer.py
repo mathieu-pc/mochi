@@ -14,7 +14,7 @@ def getChannelNumber(VX, M, T, channelWidth, *, minChannelNumber = 120, maxChann
 	"""
 	sorter = np.argsort(VX)
 	v = VX[sorter]
-	m = M[sorter]
+	m = np.abs(M)[sorter]  # negative masses could be used for testing or absorption signals
 	t = T[sorter]
 	mIntegrate = np.cumsum(m)
 	mIntegrate /= mIntegrate[-1]
@@ -65,7 +65,6 @@ def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
 	nChannel = getChannelNumber(fieldV, fieldM, fieldT, channelWidth)
 	spectrumRange = (np.arange(nChannel) - (nChannel-1)/2).reshape(nChannel).astype(int)
 
-
 	channelDispersion = np.array((fieldT / channelWidth ** 2).decompose())
 	span = np.sqrt(channelDispersion) * nSigma
 	mean = np.array((fieldV / channelWidth).decompose())
@@ -102,7 +101,7 @@ def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
 def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, cells = None, *, indexType = np.uintc, defaultRenderer = opticallyThin, **kwargs):
 	if cells is None:
 		warnings.warn("cells is expected, will attempt defaulting to " + defaultRenderer.__name__, UserWarning)
-		cube = defaultRenderer(fieldMHI, fieldV, fieldT, channelWidth, cellsVolume, volumeShape, **kwargs)
+		cube = defaultRenderer(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, **kwargs)
 		return cube
 	xyz0 = np.min(cells, axis = 0)
 	dx = xyz0[-1]
