@@ -62,8 +62,8 @@ def opticallyThin(fieldMHI, fieldV, fieldT, channelWidth, dVolume, volumeShape,
 
 
 def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
-	nChannel = getChannelNumber(fieldV, fieldM, fieldT, channelWidth)
-	spectrumRange = (np.arange(nChannel) - (nChannel-1)/2).reshape(nChannel).astype(int)
+	channelNumber = getChannelNumber(fieldV, fieldM, fieldT, channelWidth)
+	spectrumRange = (np.arange(channelNumber) - (channelNumber - 1) / 2).reshape(channelNumber).astype(int)
 
 	channelDispersion = np.array((fieldT / channelWidth ** 2).decompose())
 	span = np.sqrt(channelDispersion) * nSigma
@@ -71,6 +71,7 @@ def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
 
 	channelRanges = np.column_stack(((mean - span).astype(int), (mean + span + 0.6).astype(int)))
 	np.clip(channelRanges, spectrumRange[0], spectrumRange[-1], out = channelRanges)
+
 	centralChannel = (mean).astype(int)
 	np.clip(centralChannel, spectrumRange[0], spectrumRange[-1], out = centralChannel)
 
@@ -92,10 +93,10 @@ def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
 	weights *= fieldM.value
 	fieldSpectrum *= weights[cellIndices]
 
-	offset = np.max(np.abs(channelRanges))
+	offset = channelNumber // 2
 	channelRanges += offset
 
-	return fieldSpectrum * fieldM.unit, cellRanges, channelRanges
+	return fieldSpectrum * fieldM.unit, cellRanges, channelRanges, channelNumber
 
 
 def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, volumeShape, cells = None, *, indexType = np.uintc, defaultRenderer = opticallyThin, **kwargs):
@@ -111,10 +112,10 @@ def adaptiveOpticallyThin(fieldMHI, fieldV, fieldT, channelWidth, cellVolume, vo
 	cellRange = np.arange(N, dtype = indexType)
 	cellsBegin = np.round((cells[:,:-1] - xyz0[:-1])/dx).astype(indexType)
 	cellsFinish = np.round((cells[:,:-1] - xyz0[:-1] + cells[:,-1][:,np.newaxis])/dx).astype(indexType)
-	fieldSpectra, cellRanges, channelRanges = _calculateFieldSpectrum(fieldMHI * cellVolumes, fieldV, fieldT, channelWidth)
+	fieldSpectra, cellRanges, channelRanges, channelNumber = _calculateFieldSpectrum(fieldMHI * cellVolumes, fieldV, fieldT, channelWidth)
 	cubeUnit = fieldSpectra.unit
 	fieldSpectra = fieldSpectra[:, None, None].value
-	cube = np.zeros((np.max(channelRanges[:,1]), volumeShape[1], volumeShape[2]))
+	cube = np.zeros((channelNumber, volumeShape[1], volumeShape[2]))
 	for i in cellRange:
 		x_start, y_start, z_start = cellsBegin[i]
 		x_end, y_end, z_end = cellsFinish[i]
