@@ -17,20 +17,67 @@ kernel = _QuarticSplineKernel().kernel #Mochi accepts base martini kernels
 np.random.seed(0)
 particleNumber = 10000
 particles = generateTestParticles(particleNumber, 20)
+small_particle = {
+	"m": np.ones(1) * units.Msun,
+	"T_g": np.ones(1) * (units.km / units.s) ** 2,
+	"mHI_g": np.ones(1) * units.Msun,
+	"xyz_g": np.zeros((1,3)) * units.kpc,
+	"vxyz_g": np.zeros((1,3)) * units.km / units.s,
+	"hsm_g": np.ones(1) * 1e-8 * units.kpc
+}
+cold_particle = {
+	"m": np.ones(1) * units.Msun,
+	"T_g": np.zeros(1) * (units.km / units.s) ** 2,
+	"mHI_g": np.ones(1) * units.Msun,
+	"xyz_g": np.zeros((1,3)) * units.kpc,
+	"vxyz_g": np.zeros((1,3)) * units.km / units.s,
+	"hsm_g": np.ones(1) * units.kpc
+}
+
+@pytest.mark.parametrize(
+	"interpolant, particles", [
+	(Interpolants.SPH, small_particle),
+	(Interpolants.SPH, cold_particle),
+	(Interpolants.MFM, small_particle),
+])
+def test_run(interpolant, particles):
+	"""
+	Test graceful failure cases.
+	These should one day be resolved and moved to a mass conservation test.
+	"""
+	galaxyDistance = 10 * units.Mpc
+	pixelSize = 6 * units.arcsec
+	channelSize = 4 * units.km / units.s
+	boxLength = 2 * np.max(np.abs(particles["xyz_g"]) + particles["hsm_g"][:, np.newaxis])
+	pixelNumber = int(np.ceil(((boxLength / galaxyDistance) * units.rad / pixelSize.to(units.rad)).decompose()))
+	pixelNumber = max(pixelNumber, 10)
+	cube = Mochi.makeCube(
+		galaxyDistance,
+		particles,
+		kernel,
+		pixelNumber,
+		pixelSize,
+		channelSize,
+		interpolant,
+		adaptiveMode = True,
+		resizeMode = True
+	)
+	assert not np.any(np.isnan(cube))
+	assert not np.any(np.isinf(cube))
 
 
 @pytest.mark.parametrize(
 	"interpolant, particles", [
 	(Interpolants.SPH, particles),
-	(Interpolants.MFM, particles)
+	(Interpolants.MFM, particles),
 ])
 def test_interpolant_mass(interpolant, particles, tol = 1e-4):
 	galaxyDistance = 10 * units.Mpc
 	pixelSize = 6 * units.arcsec
 	channelSize = 4 * units.km / units.s
-	boxLength = 2 * np.max(particles["xyz_g"] + particles["hsm_g"][:, np.newaxis])
+	boxLength = 2 * np.max(np.abs(particles["xyz_g"]) + particles["hsm_g"][:, np.newaxis])
 	pixelNumber = int(np.ceil(((boxLength / galaxyDistance) * units.rad / pixelSize.to(units.rad)).decompose()))
-
+	pixelNumber = max(pixelNumber, 10)
 	cube = Mochi.makeCube(
 		galaxyDistance,
 		particles,
@@ -45,9 +92,5 @@ def test_interpolant_mass(interpolant, particles, tol = 1e-4):
 	totalParticleMass = np.sum(particles["mHI_g"])
 	totalCubeMass = np.sum(cube)
 	massRatio = (totalParticleMass / totalCubeMass).decompose().value
-	print(massRatio-1.)
 	assert np.abs(massRatio - 1.) < tol
-
-if __name__ == "__main__":
-	testAll()
 
