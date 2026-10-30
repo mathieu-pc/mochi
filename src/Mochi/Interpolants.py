@@ -110,7 +110,7 @@ def _getOutOfBoundParticles(particlePos, particleRadius, fieldPos):
 
 
 def particleScatter(subInterpolant, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, kernelCacheResolution = 256, **kwargs):
-	kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution))
+	kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution, endpoint = False))
 	maskOutOfBound = _getOutOfBoundParticles(X, H, fieldPos)
 	M *= units.dimensionless_unscaled
 	N, nDim = X.shape
