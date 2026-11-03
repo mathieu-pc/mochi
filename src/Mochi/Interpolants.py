@@ -7,6 +7,7 @@ from sklearn.neighbors import KDTree as lKDTree
 from astropy import units
 import numpy as np
 from functools import partial
+import warnings
 
 
 def _isIterable(obj):
@@ -56,6 +57,7 @@ def sphLoop(M, MHI, particlesMomentum, T, H, dist, slices, cellsVolume, kernelCa
 	finalV[kernelSlice] = fieldV[kernelSlice] * velocityUnit / fieldM[kernelSlice]
 	finalT[kernelSlice] = fieldT[kernelSlice] * velocityUnit ** 2 / fieldM[kernelSlice]
 	fields = finalV, finalMHI, finalT
+	print(np.sum(finalMHI * cellsVolume), np.sum(MHI))
 	return fields
 
 
@@ -110,7 +112,7 @@ def _getOutOfBoundParticles(particlePos, particleRadius, fieldPos):
 
 
 def particleScatter(subInterpolant, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, kernelCacheResolution = 256, **kwargs):
-	kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution))
+	kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution, endpoint = False))
 	maskOutOfBound = _getOutOfBoundParticles(X, H, fieldPos)
 	M *= units.dimensionless_unscaled
 	N, nDim = X.shape
@@ -119,6 +121,17 @@ def particleScatter(subInterpolant, X, V, H, MHI, T, M, kernel, fieldPos, dVolum
 	nPos = len(fieldPos)
 	if not _isIterable(dVolume):
 		dVolume = np.ones(nPos) * dVolume
+	tree = lKDTree(fieldPos.value)
+	nearestDistance, nearestCellIndice = tree.query(X.value, k = 1, return_distance = True)
+	nearestDistance = np.array(nearestDistance).squeeze()
+	nearestCellIndice = np.array(nearestCellIndice).squeeze()
+	maskSmallParticles = (nearestDistance > H.value) & ~ maskOutOfBound
+	if np.any(maskSmallParticles):
+		warnings.warn("Cells under-resolves particles.\nWill shift particles to avoid misses.")
+		if nearestCellIndice.ndim == 0:
+			X[maskSmallParticles] = fieldPos[nearestCellIndice]
+		else:
+			X[maskSmallParticles] = fieldPos[nearestCellIndice[maskSmallParticles]]
 	slices, dist = lKDTree(fieldPos.value).query_radius(X.value, H.value, return_distance = True)
 	particleKernels = []
 	particlesMomentum = V.value * M.value
@@ -139,7 +152,7 @@ def particleScatter(subInterpolant, X, V, H, MHI, T, M, kernel, fieldPos, dVolum
 		V.unit,
 		MHI.unit,
 		H.unit ** 3,
-		maskOutOfBound
+		maskOutOfBound,
 	)
 	return fields
 
