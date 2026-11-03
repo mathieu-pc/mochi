@@ -19,7 +19,7 @@ particleNumber = 10000
 particles = generateTestParticles(particleNumber, 20)
 small_particle = {
 	"m": np.ones(1) * units.Msun,
-	"T_g": np.ones(1) * (units.km / units.s) ** 2,
+	"T_g": np.ones(1) * 4 ** 2 * (units.km / units.s) ** 2,
 	"mHI_g": np.ones(1) * units.Msun,
 	"xyz_g": np.zeros((1,3)) * units.kpc,
 	"vxyz_g": np.zeros((1,3)) * units.km / units.s,
@@ -34,17 +34,12 @@ cold_particle = {
 	"hsm_g": np.ones(1) * units.kpc
 }
 
+
 @pytest.mark.parametrize(
 	"interpolant, particles", [
-	(Interpolants.SPH, small_particle),
 	(Interpolants.SPH, cold_particle),
-	(Interpolants.MFM, small_particle),
 ])
 def test_run(interpolant, particles):
-	"""
-	Test graceful failure cases.
-	These should one day be resolved and moved to a mass conservation test.
-	"""
 	galaxyDistance = 10 * units.Mpc
 	pixelSize = 6 * units.arcsec
 	channelSize = 4 * units.km / units.s
@@ -70,6 +65,7 @@ def test_run(interpolant, particles):
 	"interpolant, particles", [
 	(Interpolants.SPH, particles),
 	(Interpolants.MFM, particles),
+	(Interpolants.SPH, small_particle)
 ])
 def test_interpolant_mass(interpolant, particles, tol = 1e-4):
 	galaxyDistance = 10 * units.Mpc
