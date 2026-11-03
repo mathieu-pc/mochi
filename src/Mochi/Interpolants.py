@@ -111,16 +111,6 @@ def _getOutOfBoundParticles(particlePos, particleRadius, fieldPos):
 	return maskOutOfBound
 
 
-def makeParticles(positions, velocities, smoothingLengths, mass, massEmission, dispersions):
-	return {
-		"positions": positions,
-		"velocities": velocities,
-		"smoothingLengths": smoothingLengths,
-		"mass": mass,
-		"massEmission": massEmission,
-		"dispersions": dispersions,
-	}
-
 def particleScatter(subInterpolant, X, V, H, MHI, T, M, kernel, fieldPos, dVolume, *, kernelCacheResolution = 256, **kwargs):
 	kernelCache = kernel(np.linspace(0, 1, kernelCacheResolution, endpoint = False))
 	maskOutOfBound = _getOutOfBoundParticles(X, H, fieldPos)
