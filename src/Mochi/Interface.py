@@ -40,7 +40,7 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
  		beam = None,
 		adaptiveMode = True,
 		resizeMode = True,
-		pad = 0,
+		pad = 2,
 		**kwargs
 	):
 	"""
@@ -56,7 +56,7 @@ def makeCube(distance, particles, kernel, pixelNumber, pixelSize, channelWidth, 
 	if resizeMode:
 		cube = resize(cube, [pixelNumber, pixelNumber])
 		if beam is not None:
-			cube = PostProcessing.convolve(cube, beam, pixelSize)
+			cube = PostProcessing.convolve(cube, beam, pixelSize, pad = pad)
 	else:
 		if beam is not None:
 			warnings.warn("Can't convolve when resizeMode is not True")
