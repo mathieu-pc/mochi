@@ -57,7 +57,6 @@ def sphLoop(M, MHI, particlesMomentum, T, H, dist, slices, cellsVolume, kernelCa
 	finalV[kernelSlice] = fieldV[kernelSlice] * velocityUnit / fieldM[kernelSlice]
 	finalT[kernelSlice] = fieldT[kernelSlice] * velocityUnit ** 2 / fieldM[kernelSlice]
 	fields = finalV, finalMHI, finalT
-	print(np.sum(finalMHI * cellsVolume), np.sum(MHI))
 	return fields
 
 

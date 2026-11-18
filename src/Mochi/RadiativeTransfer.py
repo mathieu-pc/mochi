@@ -72,9 +72,6 @@ def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
 	channelRanges = np.column_stack(((mean - span).astype(int), (mean + span + 0.6).astype(int)))
 	np.clip(channelRanges, spectrumRange[0], spectrumRange[-1], out = channelRanges)
 
-	centralChannel = (mean).astype(int)
-	np.clip(centralChannel, spectrumRange[0], spectrumRange[-1], out = centralChannel)
-
 	difference = channelRanges[:,1] - channelRanges[:,0]
 	cumulative = np.cumulative_sum(difference, include_initial = True)
 
@@ -82,12 +79,9 @@ def _calculateFieldSpectrum(fieldM, fieldV, fieldT, channelWidth, nSigma = 5):
 	cellIndices = np.repeat(cellIndices, difference)
 
 	cellRanges = np.column_stack((cumulative[:-1], cumulative[1:]))
-	cellStartIndices = cumulative[:-1]
-	cellEndIndices = cumulative[1:]
 
 	channelDiff = np.arange(len(cellIndices)) - cumulative[cellIndices] - (difference[cellIndices] - difference[cellIndices] % 2) / 2
 	fieldSpectrum = np.exp( - channelDiff ** 2 / (2 * channelDispersion[cellIndices]))
-	cumulativeSpectrum = np.cumulative_sum(fieldSpectrum, include_initial = True)
 	weights = channelDispersion
 	weights[weights != 0] = 1 / np.sqrt(2 * np.pi * channelDispersion[weights != 0])
 	weights *= fieldM.value
