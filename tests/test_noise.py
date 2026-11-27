@@ -28,7 +28,5 @@ def test_noise():
 	#note that my estimate ignores edge effects
 	tolerance_noise = 0.02 #arbitrary value. This should be refined with statistics
 	
-	print(relative_noise, tolerance_noise)
-	print(relative_drift, tolerance_drift)
 	assert relative_noise < tolerance_noise
 	assert relative_drift < tolerance_drift

@@ -219,7 +219,8 @@ Argument_Dictionary = TrackingDictionary({
 	"resizeMode": "bool\n" +
 		indent + "If True, mock cube will be resized to pixel size.",
 	"pad" : "float\n" +
-		indent + "Pad number of beam sigma lengths to pad on cube.",
+		indent + "Uniform pad number of beam sigma lengths to pad on cube.\n" +
+		indent + "If given as :class:`astropy.units.Quantity`, is treated as an absolute value instead.",
 	"martiniSource": martiniSource + "\n" +
 		indent + "Instance of class derived from " + martiniSource +".\n" +
 		indent + "Source object to use for mock observation.",
